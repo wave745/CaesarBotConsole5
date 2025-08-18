@@ -1,6 +1,6 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Link, useLocation } from "wouter";
-import { Crown, BarChart3, Rocket, Brain, Target, Wallet, Search, Gift, Bolt, Settings } from "lucide-react";
+import { Bot, BarChart3, Rocket, Brain, Target, Wallet, Search, Gift, Bolt, Settings } from "lucide-react";
 
 export function Sidebar() {
   const { sidebarCollapsed, user } = useAppStore();
@@ -29,7 +29,7 @@ export function Sidebar() {
       <div className="p-6 border-b border-gray-800">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-r from-caesar-gold to-caesar-gold-muted rounded-full flex items-center justify-center">
-            <Crown className="text-caesar-black w-5 h-5" />
+            <Bot className="text-caesar-black w-5 h-5" />
           </div>
           <div>
             <div className="text-sm font-medium font-mono" data-testid="user-wallet-address">

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Crown, Gift, Users, Trophy, Calendar, Copy, ExternalLink, Flame, Target, Rocket } from "lucide-react";
+import { Bot, Gift, Users, Trophy, Calendar, Copy, ExternalLink, Flame, Target, Rocket } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useToast } from "@/hooks/use-toast";
 
@@ -200,7 +200,7 @@ export function Rewards() {
         <Card className="lg:col-span-2 bg-gradient-to-r from-caesar-gold/10 to-caesar-gold-muted/10 border-caesar-gold/20">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Crown className="w-6 h-6 text-caesar-gold" />
+              <Bot className="w-6 h-6 text-caesar-gold" />
               <span>Caesar Points Overview</span>
             </CardTitle>
           </CardHeader>
