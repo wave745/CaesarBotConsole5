@@ -1,7 +1,6 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Link, useLocation } from "wouter";
 import { Crown, BarChart3, Rocket, Brain, Target, Wallet, Search, Gift, Bolt, Settings } from "lucide-react";
-import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755538261130.png";
 
 export function Sidebar() {
   const { sidebarCollapsed, user } = useAppStore();
@@ -26,18 +25,6 @@ export function Sidebar() {
       }`}
       data-testid="sidebar"
     >
-      {/* Logo Section */}
-      <div className="p-6 border-b border-gray-800">
-        <div className="flex items-center justify-center mb-6">
-          <img 
-            src={caesarBotLogo} 
-            alt="Caesar Bot" 
-            className="w-32 h-auto"
-            data-testid="caesar-bot-logo"
-          />
-        </div>
-      </div>
-
       {/* Profile Section */}
       <div className="p-6 border-b border-gray-800">
         <div className="flex items-center space-x-3">
@@ -56,7 +43,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="p-4 space-y-2">
+      <nav className="p-4 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.path || (location === "/" && item.path === "/");
@@ -65,17 +52,19 @@ export function Sidebar() {
             <Link 
               key={item.path} 
               href={item.path}
-              className={`nav-item flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+              className={`nav-item flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 ${
                 isActive 
-                  ? 'active bg-caesar-gold/10 border-l-2 border-caesar-gold' 
+                  ? 'active' 
                   : 'hover:bg-gray-800'
               }`}
               data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
             >
-              <Icon className="w-5 h-5" />
-              <span>{item.label}</span>
+              <div className="flex items-center space-x-3">
+                <Icon className="w-5 h-5" />
+                <span>{item.label}</span>
+              </div>
               {item.notification && (
-                <div className={`ml-auto w-2 h-2 ${item.notificationColor} rounded-full animate-pulse-slow`}></div>
+                <div className={`w-2 h-2 ${item.notificationColor} rounded-full animate-pulse-slow`}></div>
               )}
             </Link>
           );
