@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Menu, Search, Rocket, Bell, Copy } from "lucide-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 export function Header() {
   const { sidebarCollapsed, setSidebarCollapsed, user, isWalletConnected } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [, setLocation] = useLocation();
 
   const handleSidebarToggle = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -16,6 +18,10 @@ export function Header() {
     if (user?.walletAddress) {
       await navigator.clipboard.writeText(user.walletAddress);
     }
+  };
+
+  const handleQuickDeploy = () => {
+    setLocation("/deploy");
   };
 
   return (
@@ -56,6 +62,7 @@ export function Header() {
         <div className="flex items-center space-x-4">
           {/* Quick Deploy */}
           <Button 
+            onClick={handleQuickDeploy}
             className="bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted font-medium"
             data-testid="quick-deploy-button"
           >
