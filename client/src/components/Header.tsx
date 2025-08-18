@@ -33,26 +33,16 @@ export function Header() {
       data-testid="header"
     >
       <div className="flex items-center justify-between h-full px-6">
-        {/* Sidebar Toggle & Logo */}
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSidebarToggle}
-            className="text-gray-400 hover:text-white"
-            data-testid="sidebar-toggle"
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
-          {sidebarCollapsed && (
-            <img 
-              src={caesarBotLogo} 
-              alt="Caesar Bot" 
-              className="w-8 h-auto"
-              data-testid="header-caesar-logo"
-            />
-          )}
-        </div>
+        {/* Sidebar Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleSidebarToggle}
+          className="text-gray-400 hover:text-white"
+          data-testid="sidebar-toggle"
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
 
         {/* Search */}
         <div className="flex-1 max-w-md mx-8">
