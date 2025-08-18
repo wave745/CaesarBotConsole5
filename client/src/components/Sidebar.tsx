@@ -70,16 +70,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Caesar Points */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-800">
-        <div className="bg-gradient-to-r from-caesar-gold/20 to-caesar-gold-muted/20 p-3 rounded-lg">
-          <div className="text-xs text-gray-400 mb-1">Caesar Points</div>
-          <div className="text-lg font-bold text-caesar-gold font-mono" data-testid="user-caesar-points">
-            {user?.caesarPoints.toLocaleString()}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
