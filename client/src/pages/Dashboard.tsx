@@ -20,13 +20,13 @@ export function Dashboard() {
   const [selectedLaunchpad, setSelectedLaunchpad] = useState("pumpfun");
   
   // Temporarily use mock data
-  const walletData = null;
+  const walletData = { balance: 0 };
   const walletLoading = false;
-  const portfolio = null;
+  const portfolio = { totalValue: 0, change24h: 0, tokens: [] };
   const portfolioLoading = false;
   const marketData = null;
   const marketLoading = false;
-  const tradeTokenMutation = { isPending: false, mutateAsync: async () => {} };
+  const tradeTokenMutation = { isPending: false, mutateAsync: async (params: any) => {} };
 
   // Real stats data
   const stats = [
@@ -63,12 +63,7 @@ export function Dashboard() {
   // No preset tokens - start with empty array
   const latestTokens: any[] = [];
 
-  const systemStatus = [
-    { label: "Caesarbot Uptime", value: "99.8%", status: "online" },
-    { label: "Solana RPC", value: "45ms", status: "online" },
-    { label: "Active Snipes", value: "3", status: "active" },
-    { label: "Gas Price", value: "0.00025 SOL", status: "normal" },
-  ];
+
 
   const handleBuy = async () => {
     if (!tokenAddress || !tradeAmount || !user?.walletAddress) return;
@@ -350,30 +345,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* System Status */}
-          <Card className="bg-caesar-dark border-gray-800">
-            <CardHeader>
-              <CardTitle className="text-lg">System Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {systemStatus.map((status, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <span className="text-sm">{status.label}</span>
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        status.status === 'online' ? 'bg-green-500' : 
-                        status.status === 'active' ? 'bg-caesar-gold' : 'bg-gray-500'
-                      }`}></div>
-                      <span className="text-sm font-mono" data-testid={`status-${status.label.toLowerCase().replace(/\s+/g, '-')}`}>
-                        {status.value}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+
 
           {/* Recent Activity */}
           <Card className="bg-caesar-dark border-gray-800">
