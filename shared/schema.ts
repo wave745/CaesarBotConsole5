@@ -95,3 +95,27 @@ export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
 export type Deployment = typeof deployments.$inferSelect;
 export type InsertWallet = z.infer<typeof insertWalletSchema>;
 export type Wallet = typeof wallets.$inferSelect;
+
+// Token deployment form schema
+export const tokenDeploymentSchema = z.object({
+  name: z.string().min(1, "Token name is required"),
+  symbol: z.string().min(1, "Token symbol is required").max(10, "Symbol must be 10 characters or less"),
+  description: z.string().optional(),
+  website: z.string().url().optional().or(z.literal("")),
+  twitter: z.string().optional(),
+  telegram: z.string().optional(),
+  tokenType: z.enum(["meme", "tech", "utility"]).default("meme"),
+  launchpad: z.enum(["pump", "bonk"]),
+  devBuyAmount: z.number().min(0.01, "Dev buy must be at least 0.01 SOL").max(10, "Dev buy cannot exceed 10 SOL"),
+  slippage: z.number().min(0.1).max(50).default(5),
+  priorityFee: z.number().min(0).max(0.01).default(0.0001),
+  logoFile: z.any().optional(),
+  multiWallets: z.array(z.object({
+    privateKey: z.string().optional(),
+    buyAmount: z.number().min(0.001).max(1).default(0.01),
+  })).optional(),
+  autoPost: z.boolean().default(false),
+  useDevnet: z.boolean().default(false),
+});
+
+export type TokenDeploymentForm = z.infer<typeof tokenDeploymentSchema>;
