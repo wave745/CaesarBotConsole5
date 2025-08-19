@@ -27,7 +27,7 @@ export function Header() {
 
   return (
     <header 
-      className={`fixed top-0 right-0 h-16 bg-caesar-dark/95 backdrop-blur-sm border-b border-gray-800 z-40 transition-all duration-300 ${
+      className={`fixed top-0 right-0 h-16 bg-caesar-dark border-b border-gray-800 z-40 transition-all duration-300 ${
         sidebarCollapsed ? 'left-0' : 'left-64'
       }`}
       data-testid="header"
