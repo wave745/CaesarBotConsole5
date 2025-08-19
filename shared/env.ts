@@ -1,15 +1,18 @@
 // Environment variables configuration
 export const ENV = {
-  // API Keys
-  HELIUS_API_KEY: process.env.HELIUS_API_KEY || '',
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-  RUGCHECK_API_KEY: process.env.RUGCHECK_API_KEY || '',
-  SUPABASE_URL: process.env.SUPABASE_URL || '',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+  // API Keys - Use import.meta.env for client-side access
+  HELIUS_API_KEY: typeof window !== 'undefined' ? import.meta.env.VITE_HELIUS_API_KEY : process.env.HELIUS_API_KEY || '',
+  OPENAI_API_KEY: typeof window !== 'undefined' ? import.meta.env.VITE_OPENAI_API_KEY : process.env.OPENAI_API_KEY || '',
+  RUGCHECK_API_KEY: typeof window !== 'undefined' ? import.meta.env.VITE_RUGCHECK_API_KEY : process.env.RUGCHECK_API_KEY || '',
+  SUPABASE_URL: typeof window !== 'undefined' ? import.meta.env.VITE_SUPABASE_URL : process.env.SUPABASE_URL || '',
+  SUPABASE_ANON_KEY: typeof window !== 'undefined' ? import.meta.env.VITE_SUPABASE_ANON_KEY : process.env.SUPABASE_ANON_KEY || '',
   
   // RPC Endpoints
-  JITO_RPC: process.env.JITO_RPC || 'https://mainnet.jito.bundle',
-  HELIUS_RPC: process.env.HELIUS_RPC || `https://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`,
+  JITO_RPC: typeof window !== 'undefined' ? import.meta.env.VITE_JITO_RPC : process.env.JITO_RPC || 'https://mainnet.jito.bundle',
+  HELIUS_RPC: (() => {
+    const key = typeof window !== 'undefined' ? import.meta.env.VITE_HELIUS_API_KEY : process.env.HELIUS_API_KEY;
+    return `https://rpc.helius.xyz/?api-key=${key}`;
+  })(),
   
   // API Endpoints
   BIRDEYE_API: 'https://public-api.birdeye.so',
@@ -22,8 +25,12 @@ export const ENV = {
   
   // Validation
   isConfigured: () => {
-    const required = ['HELIUS_API_KEY', 'OPENAI_API_KEY'];
-    const missing = required.filter(key => !process.env[key]);
+    const heliusKey = typeof window !== 'undefined' ? import.meta.env.VITE_HELIUS_API_KEY : process.env.HELIUS_API_KEY;
+    const openaiKey = typeof window !== 'undefined' ? import.meta.env.VITE_OPENAI_API_KEY : process.env.OPENAI_API_KEY;
+    
+    const missing = [];
+    if (!heliusKey) missing.push('HELIUS_API_KEY');
+    if (!openaiKey) missing.push('OPENAI_API_KEY');
     
     if (missing.length > 0) {
       console.warn(`Missing required environment variables: ${missing.join(', ')}`);

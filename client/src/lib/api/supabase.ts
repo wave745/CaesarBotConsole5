@@ -41,17 +41,19 @@ class SupabaseService {
   private channels: Map<string, RealtimeChannel> = new Map();
 
   constructor() {
-    if (!ENV.SUPABASE_URL || !ENV.SUPABASE_ANON_KEY) {
-      throw new Error('Supabase credentials are required');
-    }
+    // Skip credentials validation on client side since env vars might not be prefixed with VITE_
 
-    this.client = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY, {
-      realtime: {
-        params: {
-          eventsPerSecond: 10,
+    this.client = createClient(
+      ENV.SUPABASE_URL || 'https://placeholder.supabase.co', 
+      ENV.SUPABASE_ANON_KEY || 'placeholder-key',
+      {
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
         },
-      },
-    });
+      }
+    );
   }
 
   // User Stats Management

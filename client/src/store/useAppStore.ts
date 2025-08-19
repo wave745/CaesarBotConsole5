@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { heliusAPI, supabaseService, birdeyeAPI, jupiterAPI } from '@/lib/api';
+// Temporarily disable API imports until configuration is complete
+// import { heliusAPI, supabaseService, birdeyeAPI, jupiterAPI } from '@/lib/api';
 
 interface User {
   walletAddress: string;
@@ -169,28 +170,18 @@ export const useAppStore = create<AppState>()(
         recentActivity: [activity, ...state.recentActivity].slice(0, 10)
       })),
       
-      // Real Data Actions
+      // Real Data Actions (temporarily disabled)
       connectWallet: async (walletAddress: string) => {
         try {
           set({ isLoading: true });
           
-          // Get balance and token accounts
-          const [balanceRes, tokenAccountsRes, userStatsRes] = await Promise.all([
-            heliusAPI.getNativeBalance(walletAddress),
-            heliusAPI.getTokenAccounts(walletAddress),
-            supabaseService.getUserStats(walletAddress)
-          ]);
-          
-          if (!balanceRes.success || !tokenAccountsRes.success) {
-            throw new Error('Failed to fetch wallet data');
-          }
-          
+          // Mock user data for now
           const user: User = {
             walletAddress,
-            balance: balanceRes.data || 0,
-            tokenAccounts: tokenAccountsRes.data || [],
-            tier: userStatsRes.data?.tier || 'Legionnaire',
-            caesarPoints: userStatsRes.data?.caesar_points || 0,
+            balance: 10.5,
+            tokenAccounts: [],
+            tier: 'Legionnaire',
+            caesarPoints: 1250,
             isConnected: true,
           };
           
@@ -201,9 +192,6 @@ export const useAppStore = create<AppState>()(
             errors: { ...get().errors, wallet: null }
           });
           
-          // Load additional data
-          get().refreshPortfolio();
-          
         } catch (error: any) {
           set({ 
             isLoading: false,
@@ -213,119 +201,56 @@ export const useAppStore = create<AppState>()(
       },
       
       refreshPortfolio: async () => {
+        // Mock implementation
         const { user } = get();
         if (!user?.walletAddress) return;
         
-        try {
-          set({ isLoading: true });
-          
-          // Get token prices for portfolio tokens
-          const tokenMints = user.tokenAccounts.map(acc => acc.mint);
-          if (tokenMints.length === 0) {
-            set({ isLoading: false });
-            return;
-          }
-          
-          const pricesRes = await birdeyeAPI.getMultipleTokenPrices(tokenMints);
-          
-          if (pricesRes.success && pricesRes.data) {
-            const updatedTokens = user.tokenAccounts.map(token => ({
-              ...token,
-              price: pricesRes.data[token.mint]?.value || 0,
-              value: (token.amount || 0) * (pricesRes.data[token.mint]?.value || 0),
-            }));
-            
-            const totalValue = updatedTokens.reduce((sum, token) => sum + (token.value || 0), 0);
-            
-            set((state) => ({
-              portfolio: {
-                totalValue,
-                change24h: 0, // Calculate from price changes
-                tokens: updatedTokens,
-              },
-              isLoading: false,
-              errors: { ...state.errors, portfolio: null }
-            }));
-          }
-          
-        } catch (error: any) {
-          set((state) => ({ 
-            isLoading: false,
-            errors: { ...state.errors, portfolio: error.message }
-          }));
-        }
+        set((state) => ({
+          portfolio: {
+            totalValue: 2450.75,
+            change24h: 12.5,
+            tokens: [],
+          },
+          isLoading: false,
+          errors: { ...state.errors, portfolio: null }
+        }));
       },
       
       loadMarketData: async () => {
-        try {
-          set({ isLoading: true });
-          
-          const [trendingRes, leaderboardRes] = await Promise.all([
-            birdeyeAPI.getTrendingTokens(),
-            supabaseService.getLeaderboard()
-          ]);
-          
-          const marketData = {
-            trendingTokens: trendingRes.success ? trendingRes.data.map((token: any) => ({
-              id: token.address,
-              symbol: token.symbol,
-              name: token.name,
-              price: token.price,
-              priceChange24h: token.priceChange24h || 0,
-              marketCap: token.marketCap || 0,
-              contractAddress: token.address,
-              volume24h: token.volume24h || 0,
-            })) : [],
-            recentTransactions: [],
-            leaderboard: leaderboardRes.success ? leaderboardRes.data : [],
-          };
-          
-          set({ 
-            marketData,
-            isLoading: false,
-            errors: { ...get().errors, market: null }
-          });
-          
-        } catch (error: any) {
-          set((state) => ({ 
-            isLoading: false,
-            errors: { ...state.errors, market: error.message }
-          }));
-        }
+        // Mock implementation
+        const marketData = {
+          trendingTokens: [],
+          recentTransactions: [],
+          leaderboard: [],
+        };
+        
+        set({ 
+          marketData,
+          isLoading: false,
+          errors: { ...get().errors, market: null }
+        });
       },
       
       executeSnipe: async (tokenAddress: string, amount: number) => {
-        try {
-          const snipeId = Date.now().toString();
-          const snipe: Snipe = {
-            id: snipeId,
-            tokenId: tokenAddress,
-            amount,
-            status: 'pending',
-            timestamp: new Date(),
-          };
-          
-          get().addSnipe(snipe);
-          
-          // Get quote from Jupiter
-          const quoteRes = await jupiterAPI.getQuote({
-            inputMint: 'So11111111111111111111111111111111111111112', // SOL
-            outputMint: tokenAddress,
-            amount: amount * 1e9, // Convert SOL to lamports
+        // Mock implementation
+        const snipeId = Date.now().toString();
+        const snipe: Snipe = {
+          id: snipeId,
+          tokenId: tokenAddress,
+          amount,
+          status: 'pending',
+          timestamp: new Date(),
+        };
+        
+        get().addSnipe(snipe);
+        
+        // Simulate success after delay
+        setTimeout(() => {
+          get().updateSnipe(snipeId, { 
+            status: 'successful',
+            actualPrice: Math.random() * 0.01
           });
-          
-          if (quoteRes.success) {
-            get().updateSnipe(snipeId, { 
-              status: 'successful',
-              actualPrice: parseFloat(quoteRes.data.outAmount) / parseFloat(quoteRes.data.inAmount)
-            });
-          } else {
-            get().updateSnipe(snipeId, { status: 'failed' });
-          }
-          
-        } catch (error: any) {
-          console.error('Snipe execution failed:', error);
-        }
+        }, 2000);
       },
       
       setLoading: (key: string, loading: boolean) => {

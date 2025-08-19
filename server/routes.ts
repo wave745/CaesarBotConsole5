@@ -3,8 +3,122 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertTokenSchema, insertSnipeSchema, insertDeploymentSchema, insertWalletSchema } from "@shared/schema";
 import { z } from "zod";
+import { heliusAPI, birdeyeAPI, jupiterAPI, openaiService, supabaseService } from './services/api';
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Real API endpoints
+  
+  // Wallet endpoints
+  app.get("/api/wallet/:address/balance", async (req, res) => {
+    try {
+      const { address } = req.params;
+      const result = await heliusAPI.getNativeBalance(address);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/wallet/:address/tokens", async (req, res) => {
+    try {
+      const { address } = req.params;
+      const result = await heliusAPI.getTokenAccounts(address);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/wallet/:address/transactions", async (req, res) => {
+    try {
+      const { address } = req.params;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const result = await heliusAPI.getTransactionHistory(address, limit);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Market data endpoints
+  app.get("/api/market/trending", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const result = await birdeyeAPI.getTrendingTokens('volume24hUSD', 'desc', 0, limit);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/market/prices", async (req, res) => {
+    try {
+      const { tokens } = req.body;
+      const result = await birdeyeAPI.getMultipleTokenPrices(tokens);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/token/:address/price", async (req, res) => {
+    try {
+      const { address } = req.params;
+      const result = await birdeyeAPI.getTokenPrice(address);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Trading endpoints
+  app.post("/api/trade/quote", async (req, res) => {
+    try {
+      const { inputMint, outputMint, amount, slippageBps } = req.body;
+      const result = await jupiterAPI.getQuote({
+        inputMint,
+        outputMint,
+        amount,
+        slippageBps,
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // AI endpoints
+  app.post("/api/ai/analyze", async (req, res) => {
+    try {
+      const { tokenData, timeframe } = req.body;
+      const result = await openaiService.analyzeTrend(tokenData, timeframe);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // User stats endpoints
+  app.get("/api/user/:address/stats", async (req, res) => {
+    try {
+      const { address } = req.params;
+      const result = await supabaseService.getUserStats(address);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/leaderboard", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const result = await supabaseService.getLeaderboard(limit);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Scanner endpoints
   app.get("/api/scanner/tokens", async (req, res) => {
     try {

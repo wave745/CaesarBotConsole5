@@ -7,9 +7,7 @@ class HeliusAPI {
   private rpcClient: AxiosInstance;
 
   constructor() {
-    if (!ENV.HELIUS_API_KEY) {
-      throw new Error('HELIUS_API_KEY is required');
-    }
+    // Skip API key validation on client side since env vars might not be prefixed with VITE_
 
     this.client = axios.create({
       baseURL: `https://api.helius.xyz/v0`,
