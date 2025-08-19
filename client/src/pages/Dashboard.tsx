@@ -90,7 +90,7 @@ export function Dashboard() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" data-testid="stats-overview">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6" data-testid="stats-overview">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -118,7 +118,7 @@ export function Dashboard() {
       </div>
 
       {/* Main Trading Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Trading Panel */}
         <div className="lg:col-span-2 space-y-6">
           {/* Market Overview */}
@@ -150,7 +150,7 @@ export function Dashboard() {
               </div>
 
               {/* Quick Trade */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Token Address</label>
                   <Input
@@ -212,7 +212,7 @@ export function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Launchpad</label>
                   <Select value={selectedLaunchpad} onValueChange={setSelectedLaunchpad}>

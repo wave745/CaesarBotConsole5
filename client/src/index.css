@@ -50,6 +50,35 @@
   --caesar-purple: hsl(249 58% 68%);
 }
 
+.light {
+  --background: hsl(0 0% 98%);
+  --foreground: hsl(210 25% 7.8431%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(210 25% 7.8431%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(210 25% 7.8431%);
+  --primary: hsl(51 100% 50%);
+  --primary-foreground: hsl(210 25% 7.8431%);
+  --secondary: hsl(0 0% 95%);
+  --secondary-foreground: hsl(210 25% 7.8431%);
+  --muted: hsl(240 5% 96%);
+  --muted-foreground: hsl(215 16% 47%);
+  --accent: hsl(51 100% 50%);
+  --accent-foreground: hsl(210 25% 7.8431%);
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --border: hsl(214 32% 91%);
+  --input: hsl(214 32% 91%);
+  --ring: hsl(51 100% 50%);
+  
+  /* Caesar-specific colors for light theme */
+  --caesar-black: hsl(0 0% 98%);
+  --caesar-dark: hsl(0 0% 95%);
+  --caesar-gold: hsl(51 100% 40%);
+  --caesar-gold-muted: hsl(43 86% 50%);
+  --caesar-purple: hsl(249 58% 50%);
+}
+
 .dark {
   --background: hsl(0 0% 5.1%);
   --foreground: hsl(0 0% 91.1765%);

@@ -30,6 +30,13 @@ interface AppState {
   // UI State
   sidebarCollapsed: boolean;
   currentPage: string;
+  theme: 'dark' | 'light';
+  notifications: {
+    trading: boolean;
+    airdrops: boolean;
+    rewards: boolean;
+    system: boolean;
+  };
   
   // User State
   user: User | null;
@@ -47,6 +54,8 @@ interface AppState {
   // Actions
   setSidebarCollapsed: (collapsed: boolean) => void;
   setCurrentPage: (page: string) => void;
+  setTheme: (theme: 'dark' | 'light') => void;
+  setNotifications: (notifications: Partial<AppState['notifications']>) => void;
   setUser: (user: User | null) => void;
   setWalletConnected: (connected: boolean) => void;
   setSelectedToken: (token: Token | null) => void;
@@ -63,6 +72,13 @@ export const useAppStore = create<AppState>()(
       // Initial State
       sidebarCollapsed: false,
       currentPage: 'dashboard',
+      theme: 'dark',
+      notifications: {
+        trading: true,
+        airdrops: true,
+        rewards: true,
+        system: true,
+      },
       user: {
         walletAddress: '3xK7...aB9c',
         tier: 'Centurion',
@@ -101,6 +117,10 @@ export const useAppStore = create<AppState>()(
       // Actions
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       setCurrentPage: (page) => set({ currentPage: page }),
+      setTheme: (theme) => set({ theme }),
+      setNotifications: (notifications) => set((state) => ({
+        notifications: { ...state.notifications, ...notifications }
+      })),
       setUser: (user) => set({ user }),
       setWalletConnected: (connected) => set({ isWalletConnected: connected }),
       setSelectedToken: (token) => set({ selectedToken: token }),
@@ -124,6 +144,8 @@ export const useAppStore = create<AppState>()(
         user: state.user,
         aiTradingEnabled: state.aiTradingEnabled,
         sidebarCollapsed: state.sidebarCollapsed,
+        theme: state.theme,
+        notifications: state.notifications,
       }),
     }
   )
