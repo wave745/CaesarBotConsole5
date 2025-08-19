@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet, Target, Rocket, Bot, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Brain, Activity, BarChart3 } from "lucide-react";
+import { Wallet, Target, Rocket, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Brain, Activity, BarChart3 } from "lucide-react";
 import { useState } from "react";
+import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755561624266.png";
 
 export function Dashboard() {
   const { user, recentActivity, aiTradingEnabled, setAiTradingEnabled } = useAppStore();
@@ -44,7 +45,7 @@ export function Dashboard() {
       value: user?.caesarPoints.toLocaleString() || "0",
       change: "Rank #847",
       changeType: "neutral",
-      icon: Bot,
+      icon: () => <img src={caesarBotLogo} alt="CaesarBot" className="w-6 h-6" />,
     },
   ];
 
