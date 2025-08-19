@@ -8,18 +8,12 @@ export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, user } = useAppStore();
   const [location] = useLocation();
 
-  // Auto-collapse sidebar on mobile
+  // Auto-collapse sidebar only on initial mobile load
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 1024) { // lg breakpoint
-        setSidebarCollapsed(true);
-      }
-    };
-
-    handleResize(); // Check initial size
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [setSidebarCollapsed]);
+    if (window.innerWidth < 1024) { // lg breakpoint
+      setSidebarCollapsed(true);
+    }
+  }, []); // Only run once on mount
 
   // Close sidebar when clicking on mobile nav item
   const handleMobileNavClick = () => {
@@ -36,7 +30,6 @@ export function Sidebar() {
     { path: "/wallet-ops", label: "Wallet Operations", icon: Wallet },
     { path: "/scanner", label: "Pump.fun Scanner", icon: Search },
     { path: "/rewards", label: "Rewards", icon: Gift, notification: true, notificationColor: "bg-green-500" },
-    { path: "/tools", label: "Caesar Bolt", icon: Bolt },
     { path: "/settings", label: "Settings", icon: Settings },
   ];
 
