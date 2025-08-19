@@ -48,11 +48,11 @@ export const deployments = pgTable("deployments", {
 
 export const wallets = pgTable("wallets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  address: text("address").notNull().unique(),
-  name: text("name"),
+  userWallet: text("user_wallet").notNull(),
+  pubkey: text("pubkey").notNull().unique(),
+  label: text("label").notNull(),
+  isBurner: boolean("is_burner").notNull().default(false),
   balance: decimal("balance", { precision: 18, scale: 8 }).default("0"),
-  isActive: boolean("is_active").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -74,15 +74,56 @@ export const insertSnipeSchema = createInsertSchema(snipes).pick({
   price: true,
 });
 
+export const insertWalletSchema = createInsertSchema(wallets).pick({
+  userWallet: true,
+  pubkey: true,
+  label: true,
+  isBurner: true,
+});
+
+// Wallet operation schemas
+export const walletTransferSchema = z.object({
+  fromWallet: z.string().min(1, "Sender wallet required"),
+  recipientAddress: z.string().min(32, "Valid recipient address required"),
+  amount: z.number().min(0.000000001, "Amount must be greater than 0"),
+  tokenMint: z.string().optional(),
+  priorityFee: z.number().min(0).optional(),
+});
+
+export const walletMultisendSchema = z.object({
+  fromWallet: z.string().min(1, "Sender wallet required"),
+  recipients: z.array(z.object({
+    address: z.string().min(32, "Valid address required"),
+    amount: z.number().min(0.000000001, "Amount must be greater than 0"),
+  })).min(1).max(50, "Maximum 50 recipients allowed"),
+  tokenMint: z.string().optional(),
+  priorityFee: z.number().min(0).optional(),
+});
+
+export const createWalletsSchema = z.object({
+  count: z.number().min(1).max(100, "Maximum 100 wallets allowed"),
+  labelPrefix: z.string().default("Wallet"),
+  isBurner: z.boolean().default(true),
+});
+
+export const importWalletSchema = z.object({
+  privateKey: z.string().min(1, "Private key required"),
+  label: z.string().min(1, "Wallet label required"),
+  isBurner: z.boolean().default(false),
+});
+
+// Type exports
+export type WalletTransfer = z.infer<typeof walletTransferSchema>;
+export type WalletMultisend = z.infer<typeof walletMultisendSchema>;
+export type CreateWallets = z.infer<typeof createWalletsSchema>;
+export type ImportWallet = z.infer<typeof importWalletSchema>;
+export type WalletData = typeof wallets.$inferSelect;
+export type InsertWallet = z.infer<typeof insertWalletSchema>;
+
 export const insertDeploymentSchema = createInsertSchema(deployments).pick({
   tokenId: true,
   launchpad: true,
   metadata: true,
-});
-
-export const insertWalletSchema = createInsertSchema(wallets).pick({
-  address: true,
-  name: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -93,7 +134,6 @@ export type InsertSnipe = z.infer<typeof insertSnipeSchema>;
 export type Snipe = typeof snipes.$inferSelect;
 export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
 export type Deployment = typeof deployments.$inferSelect;
-export type InsertWallet = z.infer<typeof insertWalletSchema>;
 export type Wallet = typeof wallets.$inferSelect;
 
 // Token deployment form schema
