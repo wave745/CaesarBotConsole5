@@ -45,13 +45,13 @@ export function Sidebar() {
       )}
       
       <div 
-        className={`fixed left-0 top-0 h-full w-64 bg-caesar-dark border-r border-gray-800 transform transition-transform duration-300 z-50 ${
+        className={`fixed left-0 top-0 h-full w-64 bg-caesar-dark border-r border-gray-800 transform transition-transform duration-300 z-50 flex flex-col ${
           sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
         }`}
         data-testid="sidebar"
       >
       {/* Profile Section */}
-      <div className="p-6 border-b border-gray-800">
+      <div className="p-6 border-b border-gray-800 flex-shrink-0">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-r from-caesar-gold to-caesar-gold-muted rounded-full flex items-center justify-center">
             <img src={caesarBotLogo} alt="CaesarBot" className="w-8 h-8" />
@@ -65,7 +65,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="p-4 space-y-1">
+      <nav className="p-4 space-y-1 overflow-y-auto flex-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.path || (location === "/" && item.path === "/");
