@@ -419,16 +419,7 @@ export function WalletOps() {
         </p>
       </div>
 
-      {/* Security Notice */}
-      <Alert className="bg-yellow-500/10 border-yellow-500/20">
-        <Shield className="h-4 w-4 text-yellow-500" />
-        <AlertDescription className="flex items-center justify-between">
-          <span>Private keys are never stored. Use VPN for privacy. Hardware wallets recommended for main operations.</span>
-          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500">
-            Lightning Mode
-          </Badge>
-        </AlertDescription>
-      </Alert>
+
 
       <Tabs defaultValue="manage" className="space-y-6">
         <TabsList className="bg-caesar-dark border border-gray-800">
