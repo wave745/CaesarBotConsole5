@@ -65,7 +65,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="p-4 space-y-1 overflow-y-auto flex-1">
+      <nav className="p-4 space-y-1 overflow-y-auto flex-1 hide-scrollbar">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.path || (location === "/" && item.path === "/");
