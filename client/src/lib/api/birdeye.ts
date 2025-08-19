@@ -10,7 +10,7 @@ class BirdeyeAPI {
       baseURL: ENV.BIRDEYE_API,
       headers: {
         'Content-Type': 'application/json',
-        'X-API-KEY': process.env.BIRDEYE_API_KEY || '', // Optional API key for higher limits
+        'X-API-KEY': import.meta.env.VITE_BIRDEYE_API_KEY || '', // Optional API key for higher limits
       },
     });
   }

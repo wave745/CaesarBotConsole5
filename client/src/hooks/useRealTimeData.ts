@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { heliusAPI, birdeyeAPI, supabaseService, jupiterAPI, pumpFunAPI } from '@/lib/api';
+import { apiUtils } from '@/lib/api';
 import { useAppStore } from '@/store/useAppStore';
 
 // Wallet data hook
@@ -11,8 +11,8 @@ export function useWalletData(walletAddress?: string) {
       if (!walletAddress) throw new Error('Wallet address required');
       
       const [balanceRes, tokenAccountsRes] = await Promise.all([
-        heliusAPI.getNativeBalance(walletAddress),
-        heliusAPI.getTokenAccounts(walletAddress),
+        fetch(`/api/wallet/${walletAddress}/balance`).then(r => r.json()),
+        fetch(`/api/wallet/${walletAddress}/tokens`).then(r => r.json()),
       ]);
       
       if (!balanceRes.success) throw new Error(balanceRes.error?.message);
@@ -36,7 +36,11 @@ export function usePortfolio(tokenAccounts?: any[]) {
       if (!tokenAccounts?.length) return { tokens: [], totalValue: 0, change24h: 0 };
       
       const mints = tokenAccounts.map(acc => acc.mint);
-      const pricesRes = await birdeyeAPI.getMultipleTokenPrices(mints);
+      const pricesRes = await fetch('/api/market/prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokens: mints })
+      }).then(r => r.json());
       
       if (!pricesRes.success) throw new Error(pricesRes.error?.message);
       
@@ -64,17 +68,15 @@ export function useMarketData() {
   return useQuery({
     queryKey: ['marketData'],
     queryFn: async () => {
-      const [trendingRes, recentTokensRes] = await Promise.all([
-        birdeyeAPI.getTrendingTokens(),
-        pumpFunAPI.getRecentTokens(20),
+      const [trendingRes] = await Promise.all([
+        fetch('/api/market/trending').then(r => r.json()),
       ]);
       
-      const trending = trendingRes.success ? trendingRes.data : [];
-      const recent = recentTokensRes.success ? recentTokensRes.data : [];
+      const trending = trendingRes.success ? (trendingRes.data || []) : [];
       
       return {
         trending: trending.slice(0, 10),
-        recent: recent.slice(0, 10),
+        recent: [],
         timestamp: Date.now(),
       };
     },
@@ -89,7 +91,7 @@ export function useTokenPrice(tokenAddress?: string) {
     queryFn: async () => {
       if (!tokenAddress) throw new Error('Token address required');
       
-      const priceRes = await birdeyeAPI.getTokenPrice(tokenAddress);
+      const priceRes = await fetch(`/api/token/${tokenAddress}/price`).then(r => r.json());
       if (!priceRes.success) throw new Error(priceRes.error?.message);
       
       return priceRes.data;
@@ -106,7 +108,7 @@ export function useTransactionHistory(walletAddress?: string) {
     queryFn: async () => {
       if (!walletAddress) throw new Error('Wallet address required');
       
-      const txRes = await heliusAPI.getTransactionHistory(walletAddress, 50);
+      const txRes = await fetch(`/api/wallet/${walletAddress}/transactions?limit=50`).then(r => r.json());
       if (!txRes.success) throw new Error(txRes.error?.message);
       
       return txRes.data;
@@ -121,7 +123,7 @@ export function useLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard'],
     queryFn: async () => {
-      const leaderboardRes = await supabaseService.getLeaderboard(100);
+      const leaderboardRes = await fetch('/api/leaderboard?limit=100').then(r => r.json());
       if (!leaderboardRes.success) throw new Error(leaderboardRes.error?.message);
       
       return leaderboardRes.data;
@@ -137,7 +139,7 @@ export function useUserStats(walletAddress?: string) {
     queryFn: async () => {
       if (!walletAddress) throw new Error('Wallet address required');
       
-      const statsRes = await supabaseService.getUserStats(walletAddress);
+      const statsRes = await fetch(`/api/user/${walletAddress}/stats`).then(r => r.json());
       if (!statsRes.success) throw new Error(statsRes.error?.message);
       
       return statsRes.data;
@@ -163,12 +165,11 @@ export function useTradeToken() {
       amount: number;
       slippage?: number;
     }) => {
-      const quoteRes = await jupiterAPI.getQuote({
-        inputMint,
-        outputMint,
-        amount,
-        slippageBps: slippage,
-      });
+      const quoteRes = await fetch('/api/trade/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputMint, outputMint, amount, slippageBps: slippage })
+      }).then(r => r.json());
       
       if (!quoteRes.success) throw new Error(quoteRes.error?.message);
       return quoteRes.data;

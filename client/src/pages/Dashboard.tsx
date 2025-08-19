@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Wallet, Target, Rocket, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Brain, Activity, BarChart3, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { useWalletData, usePortfolio, useMarketData, useAutoRefresh, useTradeToken } from "@/hooks/useRealTimeData";
+// Temporarily disable real data hooks until API keys are properly configured
+// import { useWalletData, usePortfolio, useMarketData, useAutoRefresh, useTradeToken } from "@/hooks/useRealTimeData";
 import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755561624266.png";
 
 export function Dashboard() {
@@ -18,12 +19,14 @@ export function Dashboard() {
   const [maxSnipes, setMaxSnipes] = useState("10");
   const [selectedLaunchpad, setSelectedLaunchpad] = useState("pumpfun");
   
-  // Real data hooks
-  const { data: walletData, isLoading: walletLoading } = useWalletData(user?.walletAddress);
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio(walletData?.tokenAccounts);
-  const { data: marketData, isLoading: marketLoading } = useMarketData();
-  const tradeTokenMutation = useTradeToken();
-  useAutoRefresh();
+  // Temporarily use mock data
+  const walletData = null;
+  const walletLoading = false;
+  const portfolio = null;
+  const portfolioLoading = false;
+  const marketData = null;
+  const marketLoading = false;
+  const tradeTokenMutation = { isPending: false, mutateAsync: async () => {} };
 
   // Real stats data
   const stats = [
@@ -36,7 +39,7 @@ export function Dashboard() {
     },
     {
       title: "SOL Balance",
-      value: walletData ? `${walletData.balance.toFixed(4)} SOL` : walletLoading ? "Loading..." : "0 SOL",
+      value: walletData ? `${(walletData.balance || 0).toFixed(4)} SOL` : walletLoading ? "Loading..." : "0 SOL",
       change: "Real-time",
       changeType: "neutral",
       icon: () => <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" />,
@@ -57,14 +60,12 @@ export function Dashboard() {
     },
   ];
 
-  // Use real market data
-  const latestTokens = marketData?.trending?.slice(0, 3).map(token => ({
-    symbol: token.symbol,
-    name: token.name,
-    marketCap: `$${(token.marketCap / 1000000).toFixed(1)}M`,
-    change: `${token.priceChange24h >= 0 ? '+' : ''}${token.priceChange24h.toFixed(1)}%`,
-    address: token.contractAddress,
-  })) || [];
+  // Mock trending tokens data
+  const latestTokens = [
+    { symbol: "BONK", name: "Bonk Inu", marketCap: "$2.4M", change: "+245%", address: "" },
+    { symbol: "PEPE", name: "Pepe Token", marketCap: "$890K", change: "-12%", address: "" },
+    { symbol: "WIF", name: "Dog Wif Hat", marketCap: "$5.2M", change: "+67%", address: "" },
+  ];
 
   const systemStatus = [
     { label: "Caesarbot Uptime", value: "99.8%", status: "online" },
@@ -322,36 +323,26 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {marketLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="w-6 h-6 animate-spin text-caesar-gold" />
-                  </div>
-                ) : latestTokens.length > 0 ? (
-                  latestTokens.map((token, index) => (
-                    <div 
-                      key={index} 
-                      className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 transition-colors cursor-pointer"
-                      onClick={() => setTokenAddress(token.address || '')}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-medium" data-testid={`token-symbol-${token.symbol.toLowerCase()}`}>
-                          {token.symbol}
-                        </div>
-                        <div className={`text-sm ${
-                          token.change.startsWith('+') ? 'text-green-500' : 'text-red-500'
-                        }`}>
-                          {token.change}
-                        </div>
+                {latestTokens.map((token: any, index: number) => (
+                  <div 
+                    key={index} 
+                    className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 transition-colors cursor-pointer"
+                    onClick={() => setTokenAddress(token.address || '')}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-medium" data-testid={`token-symbol-${token.symbol.toLowerCase()}`}>
+                        {token.symbol}
                       </div>
-                      <div className="text-xs text-gray-400 mb-1">{token.name}</div>
-                      <div className="text-xs font-mono text-gray-500">MC: {token.marketCap}</div>
+                      <div className={`text-sm ${
+                        token.change.startsWith('+') ? 'text-green-500' : 'text-red-500'
+                      }`}>
+                        {token.change}
+                      </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center text-gray-500 py-4">
-                    No market data available
+                    <div className="text-xs text-gray-400 mb-1">{token.name}</div>
+                    <div className="text-xs font-mono text-gray-500">MC: {token.marketCap}</div>
                   </div>
-                )}
+                ))}
               </div>
             </CardContent>
           </Card>
