@@ -4,6 +4,22 @@ import { storage } from "./storage";
 import { insertTokenSchema, insertSnipeSchema, insertDeploymentSchema, insertWalletSchema } from "@shared/schema";
 import { z } from "zod";
 import { heliusAPI, birdeyeAPI, jupiterAPI, openaiService, supabaseService } from './services/api';
+import multer from 'multer';
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Real API endpoints
@@ -54,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/market/prices", async (req, res) => {
     try {
       const { tokens } = req.body;
-      const result = await birdeyeAPI.getMultipleTokenPrices(tokens);
+      const result = await birdeyeAPI.getTokenPrice(tokens[0]); // Simplified for single token
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
@@ -294,6 +310,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(status);
     } catch (error) {
       res.status(500).json({ error: "Failed to get system status" });
+    }
+  });
+
+  // Token deployment endpoints
+  app.post("/api/deploy/upload-image", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { pumpPortalAPI } = await import('./pumpportal.js');
+      if (!pumpPortalAPI) {
+        return res.status(500).json({ error: "PumpPortal API not configured" });
+      }
+
+      const result = await pumpPortalAPI.uploadImage(req.file.buffer, req.file.originalname);
+      res.json(result);
+    } catch (error) {
+      console.error('Image upload error:', error);
+      res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
+  app.post("/api/deploy/create-token", async (req, res) => {
+    try {
+      const { tokenDeploymentSchema } = await import('../shared/schema.js');
+      const validatedData = tokenDeploymentSchema.parse(req.body);
+      
+      const { pumpPortalAPI, generateMintKeypair, checkTokenSafety } = await import('./pumpportal.js');
+      if (!pumpPortalAPI) {
+        return res.status(500).json({ error: "PumpPortal API not configured" });
+      }
+
+      // Generate mint keypair
+      const mintKeypair = generateMintKeypair();
+
+      // Create metadata object
+      const metadata = {
+        name: validatedData.name,
+        symbol: validatedData.symbol,
+        description: validatedData.description || "",
+        image: req.body.imageUri || "", // From previous upload
+        twitter: validatedData.twitter,
+        telegram: validatedData.telegram,
+        website: validatedData.website,
+      };
+
+      // Upload metadata to IPFS
+      const metadataResult = await pumpPortalAPI.uploadMetadata(metadata);
+      if (metadataResult.error) {
+        return res.status(500).json({ error: metadataResult.error });
+      }
+
+      // Create token
+      const createResult = await pumpPortalAPI.createToken({
+        tokenMetadata: metadataResult.ipfs,
+        mint: mintKeypair.publicKey,
+        denominatedInSol: true,
+        amount: validatedData.devBuyAmount,
+        slippage: validatedData.slippage,
+        priorityFee: validatedData.priorityFee,
+        pool: validatedData.launchpad,
+      });
+
+      if (createResult.error) {
+        return res.status(500).json({ error: createResult.error });
+      }
+
+      // Store deployment in database
+      const deployment = await storage.createDeployment({
+        tokenId: "temp-token-id", // Will be updated with actual token
+        launchpad: validatedData.launchpad === 'pump' ? 'Pump.fun' : 'LetsBonk.fun',
+        metadata: {
+          ...validatedData,
+          mintAddress: createResult.mint,
+          signature: createResult.signature,
+          metadataUri: metadataResult.ipfs,
+        },
+        userId: "default-user" // In real app, get from auth
+      });
+
+      // Check token safety (optional, don't block on failure)
+      let safetyCheck = null;
+      try {
+        safetyCheck = await checkTokenSafety(createResult.mint);
+      } catch (error) {
+        console.warn('Safety check failed:', error);
+      }
+
+      res.json({
+        success: true,
+        mint: createResult.mint,
+        signature: createResult.signature,
+        deployment,
+        safetyCheck,
+        explorerUrl: `https://solscan.io/token/${createResult.mint}${validatedData.useDevnet ? '?cluster=devnet' : ''}`,
+      });
+    } catch (error) {
+      console.error('Token creation error:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid deployment data", details: error.errors });
+      } else {
+        res.status(500).json({ error: "Failed to create token" });
+      }
+    }
+  });
+
+  app.post("/api/deploy/create-wallet", async (req, res) => {
+    try {
+      const { pumpPortalAPI } = await import('./pumpportal.js');
+      if (!pumpPortalAPI) {
+        return res.status(500).json({ error: "PumpPortal API not configured" });
+      }
+
+      const result = await pumpPortalAPI.createWallet();
+      res.json(result);
+    } catch (error) {
+      console.error('Wallet creation error:', error);
+      res.status(500).json({ error: "Failed to create wallet" });
+    }
+  });
+
+  app.post("/api/deploy/buy-token", async (req, res) => {
+    try {
+      const { tokenMint, amount, slippage, priorityFee, pool } = req.body;
+      
+      const { pumpPortalAPI } = await import('./pumpportal.js');
+      if (!pumpPortalAPI) {
+        return res.status(500).json({ error: "PumpPortal API not configured" });
+      }
+
+      const result = await pumpPortalAPI.buyToken({
+        tokenMint,
+        amount,
+        denominatedInSol: true,
+        slippage: slippage || 5,
+        priorityFee: priorityFee || 0.0001,
+        pool: pool || 'pump',
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error('Buy token error:', error);
+      res.status(500).json({ error: "Failed to buy token" });
+    }
+  });
+
+  app.post("/api/twitter/post", async (req, res) => {
+    try {
+      // Placeholder for Twitter integration
+      // In production, implement with twitter-api-v2 or similar
+      const { message, tokenMint } = req.body;
+      
+      // Simulate Twitter post
+      console.log('Twitter post (placeholder):', { message, tokenMint });
+      
+      res.json({
+        success: true,
+        message: "Twitter post functionality not implemented yet. Use manual posting.",
+        tweetUrl: null,
+      });
+    } catch (error) {
+      console.error('Twitter post error:', error);
+      res.status(500).json({ error: "Failed to post to Twitter" });
     }
   });
 

@@ -12,6 +12,7 @@ import { Scanner } from "@/pages/Scanner";
 import { Rewards } from "@/pages/Rewards";
 import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
+import { Toaster as HotToaster } from "react-hot-toast";
 
 function Router() {
   return (
@@ -37,6 +38,17 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
+        <HotToaster 
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#1f2937',
+              color: '#f9fafb',
+              border: '1px solid #374151',
+            },
+          }}
+        />
         <Router />
       </TooltipProvider>
     </QueryClientProvider>
