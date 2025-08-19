@@ -477,6 +477,229 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Wallet Operations endpoints
+  app.get('/api/wallets', async (req, res) => {
+    try {
+      const { userWallet } = req.query;
+      
+      // Mock wallet data - in production, query database
+      const mockWallets = [
+        {
+          id: '1',
+          userWallet: userWallet as string,
+          pubkey: '3xK7pQ2bF4aZ8wXo9vJ2sN7qMnR4kP6tE5cB1xY9aA2z',
+          label: 'Main Trading Wallet',
+          isBurner: false,
+          balance: '2.5670',
+          balanceNumber: 2.5670,
+          createdAt: new Date('2024-01-15'),
+        },
+        {
+          id: '2',
+          userWallet: userWallet as string,
+          pubkey: '9bKjF8cX3nP2vY7wR1qA5sD4eT6hU8iO0pL3mN9oC2z',
+          label: 'Burner Wallet #1',
+          isBurner: true,
+          balance: '0.1250',
+          balanceNumber: 0.1250,
+          createdAt: new Date('2024-01-16'),
+        },
+        {
+          id: '3',
+          userWallet: userWallet as string,
+          pubkey: '4dR7sA9xK2nF5vB8eT1qC6wP3hY0uI5oL7mN4jG8sZ3',
+          label: 'Deploy Wallet #1',
+          isBurner: true,
+          balance: '0.0500',
+          balanceNumber: 0.0500,
+          createdAt: new Date('2024-01-17'),
+        },
+      ];
+
+      res.json(mockWallets);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/wallets/create', async (req, res) => {
+    try {
+      const { count, labelPrefix, isBurner, userWallet } = req.body;
+      
+      // Mock wallet creation with Solana KeyPair generation simulation
+      const wallets = [];
+      for (let i = 0; i < count; i++) {
+        wallets.push({
+          id: `${Date.now()}-${i}`,
+          userWallet,
+          pubkey: `${Date.now()}${i}MockPublicKey`,
+          privateKey: `${Date.now()}${i}MockPrivateKeyBase58`,
+          label: `${labelPrefix} #${i + 1}`,
+          isBurner,
+          balance: '0.0000',
+          balanceNumber: 0,
+          createdAt: new Date(),
+        });
+      }
+
+      res.json({
+        success: true,
+        wallets,
+        message: `Successfully created ${count} wallet(s)`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/wallets/import', async (req, res) => {
+    try {
+      const { privateKey, label, isBurner, userWallet } = req.body;
+      
+      // Mock private key validation and public key derivation
+      if (!privateKey || privateKey.length < 32) {
+        return res.status(400).json({ error: 'Invalid private key format' });
+      }
+
+      const mockWallet = {
+        id: `imported-${Date.now()}`,
+        userWallet,
+        pubkey: `${Date.now()}DerivedPublicKey`,
+        label,
+        isBurner,
+        balance: '0.0000',
+        balanceNumber: 0,
+        createdAt: new Date(),
+      };
+
+      res.json({
+        success: true,
+        wallet: mockWallet,
+        message: 'Wallet imported successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/wallets/transfer', async (req, res) => {
+    try {
+      const { fromWallet, recipientAddress, amount, tokenMint, priorityFee } = req.body;
+      
+      // Mock transaction creation and submission
+      const mockTxHash = `${Date.now()}TransferTransactionSignature`;
+      
+      res.json({
+        success: true,
+        txHash: mockTxHash,
+        explorerUrl: `https://solscan.io/tx/${mockTxHash}`,
+        amount,
+        from: fromWallet,
+        to: recipientAddress,
+        tokenMint: tokenMint || 'SOL',
+        priorityFee,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/wallets/multisend', async (req, res) => {
+    try {
+      const { fromWallet, recipients, tokenMint, priorityFee } = req.body;
+      
+      // Mock multisend transaction
+      const mockTxHash = `${Date.now()}MultisendTransactionSignature`;
+      
+      res.json({
+        success: true,
+        txHash: mockTxHash,
+        explorerUrl: `https://solscan.io/tx/${mockTxHash}`,
+        recipients,
+        from: fromWallet,
+        tokenMint: tokenMint || 'SOL',
+        priorityFee,
+        totalAmount: recipients.reduce((sum: number, r: any) => sum + r.amount, 0),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.delete('/api/wallets/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Mock wallet deletion
+      res.json({
+        success: true,
+        message: `Wallet ${id} deleted successfully`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/wallets/airdrop', async (req, res) => {
+    try {
+      const { address } = req.body;
+      
+      // Mock airdrop (devnet only)
+      const mockTxHash = `${Date.now()}AirdropTransactionSignature`;
+      
+      res.json({
+        success: true,
+        txHash: mockTxHash,
+        amount: 1.0,
+        address,
+        message: 'Airdrop successful (devnet only)',
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/wallets/fund', async (req, res) => {
+    try {
+      const { fromWallet, toWallet, amount } = req.body;
+      
+      // Mock funding transaction
+      const mockTxHash = `${Date.now()}FundingTransactionSignature`;
+      
+      res.json({
+        success: true,
+        txHash: mockTxHash,
+        from: fromWallet,
+        to: toWallet,
+        amount,
+        message: `Funded wallet with ${amount} SOL`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/wallets/refresh-balances', async (req, res) => {
+    try {
+      const { addresses } = req.body;
+      
+      // Mock balance refresh via Helius API
+      const updatedBalances = addresses.map((addr: string) => ({
+        address: addr,
+        balance: Math.random() * 5, // Random balance between 0-5 SOL
+        lastUpdated: new Date(),
+      }));
+      
+      res.json({
+        success: true,
+        balances: updatedBalances,
+        message: 'Balances refreshed successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
