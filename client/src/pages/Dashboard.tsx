@@ -45,7 +45,7 @@ export function Dashboard() {
       value: user?.caesarPoints.toLocaleString() || "0",
       change: "Rank #847",
       changeType: "neutral",
-      icon: () => <img src={caesarBotLogo} alt="CaesarBot" className="w-6 h-6" />,
+      icon: () => <img src={caesarBotLogo} alt="CaesarBot" className="w-8 h-8" />,
     },
   ];
 

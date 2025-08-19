@@ -201,7 +201,7 @@ export function Rewards() {
         <Card className="lg:col-span-2 bg-gradient-to-r from-caesar-gold/10 to-caesar-gold-muted/10 border-caesar-gold/20">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <img src={caesarBotLogo} alt="CaesarBot" className="w-6 h-6" />
+              <img src={caesarBotLogo} alt="CaesarBot" className="w-8 h-8" />
               <span>Caesar Points Overview</span>
             </CardTitle>
           </CardHeader>

@@ -30,7 +30,7 @@ export function Sidebar() {
       <div className="p-6 border-b border-gray-800">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-r from-caesar-gold to-caesar-gold-muted rounded-full flex items-center justify-center">
-            <img src={caesarBotLogo} alt="CaesarBot" className="w-6 h-6" />
+            <img src={caesarBotLogo} alt="CaesarBot" className="w-8 h-8" />
           </div>
           <div>
             <div className="text-sm font-medium font-mono" data-testid="user-wallet-address">
