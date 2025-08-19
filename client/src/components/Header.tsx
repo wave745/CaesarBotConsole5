@@ -45,7 +45,7 @@ export function Header() {
         </Button>
 
         {/* Search */}
-        <div className="flex-1 max-w-md mx-8">
+        <div className="flex-1 max-w-md mx-4 lg:mx-8 hidden sm:block">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
@@ -60,15 +60,16 @@ export function Header() {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 lg:space-x-4">
           {/* Quick Deploy */}
           <Button 
             onClick={handleQuickDeploy}
             className="bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted font-medium"
+            size="sm"
             data-testid="quick-deploy-button"
           >
-            <Rocket className="w-4 h-4 mr-2" />
-            Quick Deploy
+            <Rocket className="w-4 h-4 lg:mr-2" />
+            <span className="hidden lg:inline">Quick Deploy</span>
           </Button>
 
           {/* Notifications */}
@@ -84,10 +85,13 @@ export function Header() {
 
           {/* Wallet Connection */}
           {isWalletConnected && user && (
-            <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 flex items-center space-x-2">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg px-2 lg:px-4 py-2 flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm font-mono" data-testid="wallet-address-display">
+              <span className="text-sm font-mono hidden lg:inline" data-testid="wallet-address-display">
                 {user.walletAddress}
+              </span>
+              <span className="text-xs font-mono lg:hidden" data-testid="wallet-address-display-mobile">
+                {user.walletAddress.slice(0, 4)}...{user.walletAddress.slice(-4)}
               </span>
               <Button
                 variant="ghost"

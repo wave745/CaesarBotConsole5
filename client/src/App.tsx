@@ -10,6 +10,7 @@ import { Sniper } from "@/pages/Sniper";
 import { WalletOps } from "@/pages/WalletOps";
 import { Scanner } from "@/pages/Scanner";
 import { Rewards } from "@/pages/Rewards";
+import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,7 +25,7 @@ function Router() {
         <Route path="/scanner" component={Scanner} />
         <Route path="/rewards" component={Rewards} />
         <Route path="/tools" component={Dashboard} />
-        <Route path="/settings" component={Dashboard} />
+        <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

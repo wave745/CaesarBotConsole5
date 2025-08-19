@@ -2,10 +2,31 @@ import { useAppStore } from "@/store/useAppStore";
 import { Link, useLocation } from "wouter";
 import { BarChart3, Rocket, Brain, Target, Wallet, Search, Gift, Bolt, Settings } from "lucide-react";
 import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755561624266.png";
+import { useEffect } from "react";
 
 export function Sidebar() {
-  const { sidebarCollapsed, user } = useAppStore();
+  const { sidebarCollapsed, setSidebarCollapsed, user } = useAppStore();
   const [location] = useLocation();
+
+  // Auto-collapse sidebar on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) { // lg breakpoint
+        setSidebarCollapsed(true);
+      }
+    };
+
+    handleResize(); // Check initial size
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [setSidebarCollapsed]);
+
+  // Close sidebar when clicking on mobile nav item
+  const handleMobileNavClick = () => {
+    if (window.innerWidth < 1024) {
+      setSidebarCollapsed(true);
+    }
+  };
 
   const menuItems = [
     { path: "/", label: "Dashboard", icon: BarChart3 },
@@ -20,12 +41,22 @@ export function Sidebar() {
   ];
 
   return (
-    <div 
-      className={`fixed left-0 top-0 h-full w-64 bg-caesar-dark border-r border-gray-800 transform transition-transform duration-300 z-50 ${
-        sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
-      }`}
-      data-testid="sidebar"
-    >
+    <>
+      {/* Mobile overlay */}
+      {!sidebarCollapsed && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setSidebarCollapsed(true)}
+          data-testid="sidebar-overlay"
+        />
+      )}
+      
+      <div 
+        className={`fixed left-0 top-0 h-full w-64 bg-caesar-dark border-r border-gray-800 transform transition-transform duration-300 z-50 ${
+          sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
+        }`}
+        data-testid="sidebar"
+      >
       {/* Profile Section */}
       <div className="p-6 border-b border-gray-800">
         <div className="flex items-center space-x-3">
@@ -50,6 +81,7 @@ export function Sidebar() {
             <Link 
               key={item.path} 
               href={item.path}
+              onClick={handleMobileNavClick}
               className={`nav-item flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 ${
                 isActive 
                   ? 'active' 
@@ -68,6 +100,7 @@ export function Sidebar() {
           );
         })}
       </nav>
-    </div>
+      </div>
+    </>
   );
 }

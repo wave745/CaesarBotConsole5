@@ -197,7 +197,7 @@ export function Rewards() {
       </div>
 
       {/* Points Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 mb-8">
         <Card className="lg:col-span-2 bg-gradient-to-r from-caesar-gold/10 to-caesar-gold-muted/10 border-caesar-gold/20">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
