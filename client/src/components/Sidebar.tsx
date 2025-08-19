@@ -33,11 +33,8 @@ export function Sidebar() {
             <img src={caesarBotLogo} alt="CaesarBot" className="w-8 h-8" />
           </div>
           <div>
-            <div className="text-sm font-medium font-mono" data-testid="user-wallet-address">
-              {user?.walletAddress}
-            </div>
-            <div className="text-xs text-caesar-gold font-mono" data-testid="user-tier">
-              {user?.tier}
+            <div className="text-sm font-medium text-caesar-gold" data-testid="console-title">
+              Caesarbot console
             </div>
           </div>
         </div>
