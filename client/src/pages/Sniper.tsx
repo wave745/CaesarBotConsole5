@@ -57,35 +57,7 @@ export function Sniper() {
     }
   };
 
-  const mockSnipeHistory = [
-    {
-      id: "1",
-      token: "BONK",
-      amount: "0.05 SOL",
-      price: "$0.0000123",
-      status: "successful",
-      profit: "+245%",
-      timestamp: "2 min ago",
-    },
-    {
-      id: "2", 
-      token: "PEPE",
-      amount: "0.1 SOL",
-      price: "$0.0000045",
-      status: "failed",
-      reason: "Slippage exceeded",
-      timestamp: "5 min ago",
-    },
-    {
-      id: "3",
-      token: "WIF",
-      amount: "0.05 SOL", 
-      price: "$0.0001234",
-      status: "successful",
-      profit: "+67%",
-      timestamp: "12 min ago",
-    },
-  ];
+  const mockSnipeHistory: any[] = [];
 
   return (
     <div className="space-y-8">
@@ -466,7 +438,7 @@ export function Sniper() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {mockSnipeHistory.map((snipe) => (
+            {mockSnipeHistory.length > 0 ? mockSnipeHistory.map((snipe) => (
               <div key={snipe.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg">
                 <div className="flex items-center space-x-4">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -499,7 +471,12 @@ export function Sniper() {
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="text-center text-gray-500 py-8">
+                <div className="text-sm">No snipe history</div>
+                <div className="text-xs mt-1">Execute snipes to view history</div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

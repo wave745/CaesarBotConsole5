@@ -19,29 +19,7 @@ interface WalletData {
 
 export function WalletOps() {
   const { toast } = useToast();
-  const [wallets, setWallets] = useState<WalletData[]>([
-    {
-      id: "1",
-      name: "Main Wallet",
-      address: "3xK7...aB9c",
-      balance: "245.67",
-      isActive: true,
-    },
-    {
-      id: "2", 
-      name: "Trading Wallet #1",
-      address: "7pL2...xZ4m",
-      balance: "12.34",
-      isActive: false,
-    },
-    {
-      id: "3",
-      name: "Sniper Wallet #1",
-      address: "9qR5...nV8k",
-      balance: "5.78",
-      isActive: false,
-    },
-  ]);
+  const [wallets, setWallets] = useState<WalletData[]>([]);
 
   const [selectedWallets, setSelectedWallets] = useState<string[]>([]);
   const [transferAmount, setTransferAmount] = useState("");

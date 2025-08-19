@@ -60,12 +60,8 @@ export function Dashboard() {
     },
   ];
 
-  // Mock trending tokens data
-  const latestTokens = [
-    { symbol: "BONK", name: "Bonk Inu", marketCap: "$2.4M", change: "+245%", address: "" },
-    { symbol: "PEPE", name: "Pepe Token", marketCap: "$890K", change: "-12%", address: "" },
-    { symbol: "WIF", name: "Dog Wif Hat", marketCap: "$5.2M", change: "+67%", address: "" },
-  ];
+  // No preset tokens - start with empty array
+  const latestTokens: any[] = [];
 
   const systemStatus = [
     { label: "Caesarbot Uptime", value: "99.8%", status: "online" },
@@ -323,26 +319,33 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {latestTokens.map((token: any, index: number) => (
-                  <div 
-                    key={index} 
-                    className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 transition-colors cursor-pointer"
-                    onClick={() => setTokenAddress(token.address || '')}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="font-medium" data-testid={`token-symbol-${token.symbol.toLowerCase()}`}>
-                        {token.symbol}
+                {latestTokens.length > 0 ? (
+                  latestTokens.map((token: any, index: number) => (
+                    <div 
+                      key={index} 
+                      className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 transition-colors cursor-pointer"
+                      onClick={() => setTokenAddress(token.address || '')}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-medium" data-testid={`token-symbol-${token.symbol.toLowerCase()}`}>
+                          {token.symbol}
+                        </div>
+                        <div className={`text-sm ${
+                          token.change.startsWith('+') ? 'text-green-500' : 'text-red-500'
+                        }`}>
+                          {token.change}
+                        </div>
                       </div>
-                      <div className={`text-sm ${
-                        token.change.startsWith('+') ? 'text-green-500' : 'text-red-500'
-                      }`}>
-                        {token.change}
-                      </div>
+                      <div className="text-xs text-gray-400 mb-1">{token.name}</div>
+                      <div className="text-xs font-mono text-gray-500">MC: {token.marketCap}</div>
                     </div>
-                    <div className="text-xs text-gray-400 mb-1">{token.name}</div>
-                    <div className="text-xs font-mono text-gray-500">MC: {token.marketCap}</div>
+                  ))
+                ) : (
+                  <div className="text-center text-gray-500 py-8">
+                    <div className="text-sm">No tokens available</div>
+                    <div className="text-xs mt-1">Connect to real APIs to see live data</div>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>

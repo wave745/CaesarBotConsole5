@@ -120,71 +120,11 @@ export function Rewards() {
 
   const tierInfo = getTierProgress(user?.caesarPoints || 0);
 
-  const mockMissions: Mission[] = [
-    {
-      id: "1",
-      title: "Daily Trader",
-      description: "Execute 5 trades today",
-      reward: 100,
-      progress: 3,
-      target: 5,
-      type: "daily",
-      completed: false,
-      icon: "target"
-    },
-    {
-      id: "2",
-      title: "Token Deployer",
-      description: "Deploy a token this week",
-      reward: 500,
-      progress: 0,
-      target: 1,
-      type: "weekly",
-      completed: false,
-      icon: "rocket"
-    },
-    {
-      id: "3",
-      title: "Sniper Master",
-      description: "Complete 50 successful snipes",
-      reward: 1000,
-      progress: 47,
-      target: 50,
-      type: "achievement",
-      completed: false,
-      icon: "flame"
-    }
-  ];
+  const mockMissions: Mission[] = [];
 
-  const mockLeaderboard: LeaderboardEntry[] = [
-    { rank: 1, walletAddress: "9pR3...xL7k", tier: "Caesar", points: 125000, trades: 2340, deployments: 45 },
-    { rank: 2, walletAddress: "4mN8...qW9v", tier: "Praetor", points: 89000, trades: 1890, deployments: 32 },
-    { rank: 3, walletAddress: "7xT5...bC2n", tier: "Praetor", points: 76500, trades: 1650, deployments: 28 },
-    { rank: 847, walletAddress: user?.walletAddress || "", tier: user?.tier || "Centurion", points: user?.caesarPoints || 0, trades: 127, deployments: 34 },
-  ];
+  const mockLeaderboard: LeaderboardEntry[] = [];
 
-  const mockAirdrops: Airdrop[] = [
-    {
-      id: "1",
-      tokenSymbol: "CAESAR",
-      tokenName: "Caesar Token",
-      amount: "1,000",
-      value: "$250",
-      claimable: true,
-      expires: "2024-02-15",
-      requirements: ["Complete 10 trades", "Hold CAESAR tokens"]
-    },
-    {
-      id: "2",
-      tokenSymbol: "BONK",
-      tokenName: "Bonk Inu",
-      amount: "50,000",
-      value: "$125",
-      claimable: false,
-      expires: "2024-02-20",
-      requirements: ["Deploy 3 tokens", "Refer 5 users"]
-    }
-  ];
+  const mockAirdrops: Airdrop[] = [];
 
   return (
     <div className="space-y-8">
@@ -239,12 +179,12 @@ export function Rewards() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <div className="text-2xl font-bold text-green-500" data-testid="daily-points">+450</div>
+              <div className="text-2xl font-bold text-green-500" data-testid="daily-points">+0</div>
               <div className="text-sm text-gray-400">Points earned today</div>
             </div>
             <div>
-              <div className="text-lg font-semibold">Streak: 5 days</div>
-              <div className="text-sm text-gray-400">Keep going for bonus rewards!</div>
+              <div className="text-lg font-semibold">Streak: 0 days</div>
+              <div className="text-sm text-gray-400">Start trading to build your streak!</div>
             </div>
           </CardContent>
         </Card>
@@ -269,7 +209,7 @@ export function Rewards() {
         {/* Missions Tab */}
         <TabsContent value="missions">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {mockMissions.map((mission) => (
+            {mockMissions.length > 0 ? mockMissions.map((mission) => (
               <Card key={mission.id} className={`bg-caesar-dark border-gray-800 ${
                 mission.completed ? 'border-green-500/50' : ''
               }`}>
@@ -321,7 +261,12 @@ export function Rewards() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            )) : (
+              <div className="col-span-2 text-center text-gray-500 py-8">
+                <div className="text-sm">No missions available</div>
+                <div className="text-xs mt-1">Complete setup to unlock missions</div>
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -336,7 +281,7 @@ export function Rewards() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockLeaderboard.map((entry, index) => (
+                {mockLeaderboard.length > 0 ? mockLeaderboard.map((entry, index) => (
                   <div 
                     key={entry.rank} 
                     className={`flex items-center justify-between p-4 rounded-lg ${
@@ -372,7 +317,12 @@ export function Rewards() {
                       </div>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className="text-center text-gray-500 py-8">
+                    <div className="text-sm">No leaderboard data available</div>
+                    <div className="text-xs mt-1">Start trading to appear on the leaderboard</div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -381,7 +331,7 @@ export function Rewards() {
         {/* Airdrops Tab */}
         <TabsContent value="airdrops">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {mockAirdrops.map((airdrop) => (
+            {mockAirdrops.length > 0 ? mockAirdrops.map((airdrop) => (
               <Card key={airdrop.id} className="bg-caesar-dark border-gray-800">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -432,7 +382,12 @@ export function Rewards() {
                   </Button>
                 </CardContent>
               </Card>
-            ))}
+            )) : (
+              <div className="col-span-2 text-center text-gray-500 py-8">
+                <div className="text-sm">No airdrops available</div>
+                <div className="text-xs mt-1">Check back later for exclusive airdrops</div>
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -473,13 +428,13 @@ export function Rewards() {
                   <div className="grid grid-cols-2 gap-4 text-center">
                     <div>
                       <div className="text-2xl font-bold text-caesar-gold" data-testid="total-referrals">
-                        7
+                        0
                       </div>
                       <div className="text-sm text-gray-400">Total Referrals</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-green-500" data-testid="referral-earnings">
-                        +850
+                        +0
                       </div>
                       <div className="text-sm text-gray-400">Points Earned</div>
                     </div>
