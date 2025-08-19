@@ -1,0 +1,18 @@
+Generate a complete set of updated code files for the Caesarbot Console Next.js application to make it fully functional by removing all mock data and integrating real data sources using production-ready APIs and libraries based on the latest 2025 standards. This includes:Real-Time Data Sources: Helius API for wallet stats, token balances, transaction history, and real-time feeds (via webhooks or DAS API for efficiency). For charts and prices, integrate Birdeye or DexScreener APIs (free tiers available), or poll Helius for recent transactions.
+Deployment: Use the unofficial Pump.fun SDK or direct on-chain calls with @solana
+/web3.js for token launches (Pump.fun doesn't have an official public API for deploys, but third-party wrappers like from GitHub exist). For other launchpads (e.g., LetsBonk.fun, Moon.it, Boop.fun, Cook.meme), use their SDKs if available.
+Sniping/Bundling: Integrate @jito
+-solana/bundle-sdk for atomic bundles to snipe without front-running. Use Jupiter Aggregator for swaps in sniping logic.
+AI Features: OpenAI SDK for predictions (e.g., analyze trends from real data).
+Scanner/Tools: Helius DAS API for Pump.fun monitoring and filters; RugCheck.xyz API for rug checks and ratings. Helius Priority Fee API for gas estimation.
+Rewards/Leaderboard: Supabase realtime subscriptions for live updates.
+Wallet Ops: @solana
+/web3.js for real transfers, multisend.
+
+Prerequisites:Add API keys to .env: HELIUS_API_KEY, OPENAI_API_KEY, RUGCHECK_API_KEY (if using RugCheck), JITO_RPC (for bundles, e.g., 'https://mainnet.jito.bundle').
+Install missing deps: npm install @jito-solana/bundle-sdk openai axios @birdeye-so/public-api-sdk (for charts; free signup at birdeye.so).
+Test on Solana devnet first to avoid real fund loss.
+For realtime: Set up Supabase realtime channels and Helius webhooks (webhook endpoint in your app via Next.js API routes).
+
+Provide updated code for key components/pages, focusing on replacing mocks with real integrations. Expand and refine the code to ensure it's complete and functional, handling errors, loading states, and full UI elements where needed. Use Replit AI-compatible structure if applicable.
+

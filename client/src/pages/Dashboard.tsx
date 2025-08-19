@@ -5,55 +5,66 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet, Target, Rocket, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Brain, Activity, BarChart3 } from "lucide-react";
+import { Wallet, Target, Rocket, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Brain, Activity, BarChart3, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useWalletData, usePortfolio, useMarketData, useAutoRefresh, useTradeToken } from "@/hooks/useRealTimeData";
 import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755561624266.png";
 
 export function Dashboard() {
-  const { user, recentActivity, aiTradingEnabled, setAiTradingEnabled } = useAppStore();
+  const { user, recentActivity, aiTradingEnabled, setAiTradingEnabled, executeSnipe } = useAppStore();
   const [tokenAddress, setTokenAddress] = useState("");
   const [tradeAmount, setTradeAmount] = useState("");
   const [snipeAmount, setSnipeAmount] = useState("0.05");
   const [maxSnipes, setMaxSnipes] = useState("10");
   const [selectedLaunchpad, setSelectedLaunchpad] = useState("pumpfun");
+  
+  // Real data hooks
+  const { data: walletData, isLoading: walletLoading } = useWalletData(user?.walletAddress);
+  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio(walletData?.tokenAccounts);
+  const { data: marketData, isLoading: marketLoading } = useMarketData();
+  const tradeTokenMutation = useTradeToken();
+  useAutoRefresh();
 
-  // Mock data for demonstration
+  // Real stats data
   const stats = [
     {
       title: "Portfolio Value",
-      value: `${user?.balance} SOL`,
-      change: "+12.5%",
-      changeType: "positive",
+      value: portfolio ? `$${portfolio.totalValue.toFixed(2)}` : walletLoading ? "Loading..." : "$0.00",
+      change: portfolio ? `${portfolio.change24h >= 0 ? '+' : ''}${portfolio.change24h.toFixed(2)}%` : "+0.00%",
+      changeType: portfolio?.change24h >= 0 ? "positive" : "negative",
       icon: Wallet,
     },
     {
-      title: "Successful Snipes",
-      value: "127",
-      change: "+8",
-      changeType: "positive",
-      icon: Target,
+      title: "SOL Balance",
+      value: walletData ? `${walletData.balance.toFixed(4)} SOL` : walletLoading ? "Loading..." : "0 SOL",
+      change: "Real-time",
+      changeType: "neutral",
+      icon: () => <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" />,
     },
     {
-      title: "Tokens Deployed",
-      value: "34",
-      change: "+2",
+      title: "Token Holdings",
+      value: portfolio ? portfolio.tokens.length.toString() : "0",
+      change: "Active",
       changeType: "positive",
       icon: Rocket,
     },
     {
       title: "Caesar Points",
-      value: user?.caesarPoints.toLocaleString() || "0",
-      change: "Rank #847",
+      value: user?.caesarPoints?.toLocaleString() || "0",
+      change: `${user?.tier || 'Legionnaire'}`,
       changeType: "neutral",
       icon: () => <img src={caesarBotLogo} alt="CaesarBot" className="w-8 h-8" />,
     },
   ];
 
-  const latestTokens = [
-    { symbol: "BONK", name: "Bonk Inu", marketCap: "$2.4M", change: "+245%" },
-    { symbol: "PEPE", name: "Pepe Token", marketCap: "$890K", change: "-12%" },
-    { symbol: "WIF", name: "Dog Wif Hat", marketCap: "$5.2M", change: "+67%" },
-  ];
+  // Use real market data
+  const latestTokens = marketData?.trending?.slice(0, 3).map(token => ({
+    symbol: token.symbol,
+    name: token.name,
+    marketCap: `$${(token.marketCap / 1000000).toFixed(1)}M`,
+    change: `${token.priceChange24h >= 0 ? '+' : ''}${token.priceChange24h.toFixed(1)}%`,
+    address: token.contractAddress,
+  })) || [];
 
   const systemStatus = [
     { label: "Caesarbot Uptime", value: "99.8%", status: "online" },
@@ -62,19 +73,42 @@ export function Dashboard() {
     { label: "Gas Price", value: "0.00025 SOL", status: "normal" },
   ];
 
-  const handleBuy = () => {
-    // Implementation for buy functionality
-    console.log("Buy", tokenAddress, tradeAmount);
+  const handleBuy = async () => {
+    if (!tokenAddress || !tradeAmount || !user?.walletAddress) return;
+    
+    try {
+      await tradeTokenMutation.mutateAsync({
+        inputMint: 'So11111111111111111111111111111111111111112', // SOL
+        outputMint: tokenAddress,
+        amount: parseFloat(tradeAmount) * 1e9, // Convert SOL to lamports
+      });
+    } catch (error) {
+      console.error('Buy failed:', error);
+    }
   };
 
-  const handleSell = () => {
-    // Implementation for sell functionality
-    console.log("Sell", tokenAddress, tradeAmount);
+  const handleSell = async () => {
+    if (!tokenAddress || !tradeAmount || !user?.walletAddress) return;
+    
+    try {
+      await tradeTokenMutation.mutateAsync({
+        inputMint: tokenAddress,
+        outputMint: 'So11111111111111111111111111111111111111112', // SOL
+        amount: parseFloat(tradeAmount),
+      });
+    } catch (error) {
+      console.error('Sell failed:', error);
+    }
   };
 
-  const handleStartSniping = () => {
-    // Implementation for sniper functionality
-    console.log("Start sniping", selectedLaunchpad, snipeAmount, maxSnipes);
+  const handleStartSniping = async () => {
+    if (!tokenAddress || !snipeAmount) return;
+    
+    try {
+      await executeSnipe(tokenAddress, parseFloat(snipeAmount));
+    } catch (error) {
+      console.error('Snipe failed:', error);
+    }
   };
 
   return (
@@ -179,17 +213,27 @@ export function Dashboard() {
                 <Button 
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                   onClick={handleBuy}
+                  disabled={!tokenAddress || !tradeAmount || tradeTokenMutation.isPending}
                   data-testid="buy-button"
                 >
-                  <ArrowUp className="w-4 h-4 mr-2" />
+                  {tradeTokenMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <ArrowUp className="w-4 h-4 mr-2" />
+                  )}
                   Buy
                 </Button>
                 <Button 
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                   onClick={handleSell}
+                  disabled={!tokenAddress || !tradeAmount || tradeTokenMutation.isPending}
                   data-testid="sell-button"
                 >
-                  <ArrowDown className="w-4 h-4 mr-2" />
+                  {tradeTokenMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <ArrowDown className="w-4 h-4 mr-2" />
+                  )}
                   Sell
                 </Button>
               </div>
@@ -278,22 +322,36 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {latestTokens.map((token, index) => (
-                  <div key={index} className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="font-medium" data-testid={`token-symbol-${token.symbol.toLowerCase()}`}>
-                        {token.symbol}
-                      </div>
-                      <div className={`text-sm ${
-                        token.change.startsWith('+') ? 'text-green-500' : 'text-red-500'
-                      }`}>
-                        {token.change}
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-400 mb-1">{token.name}</div>
-                    <div className="text-xs font-mono text-gray-500">MC: {token.marketCap}</div>
+                {marketLoading ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Loader2 className="w-6 h-6 animate-spin text-caesar-gold" />
                   </div>
-                ))}
+                ) : latestTokens.length > 0 ? (
+                  latestTokens.map((token, index) => (
+                    <div 
+                      key={index} 
+                      className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 transition-colors cursor-pointer"
+                      onClick={() => setTokenAddress(token.address || '')}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-medium" data-testid={`token-symbol-${token.symbol.toLowerCase()}`}>
+                          {token.symbol}
+                        </div>
+                        <div className={`text-sm ${
+                          token.change.startsWith('+') ? 'text-green-500' : 'text-red-500'
+                        }`}>
+                          {token.change}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400 mb-1">{token.name}</div>
+                      <div className="text-xs font-mono text-gray-500">MC: {token.marketCap}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-gray-500 py-4">
+                    No market data available
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
