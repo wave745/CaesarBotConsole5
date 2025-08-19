@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Gift, Users, Trophy, Calendar, Copy, ExternalLink, Flame, Target, Rocket } from "lucide-react";
+import { Gift, Users, Trophy, Calendar, Copy, ExternalLink, Flame, Target, Rocket } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useToast } from "@/hooks/use-toast";
+import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755561624266.png";
 
 interface Mission {
   id: string;
@@ -200,7 +201,7 @@ export function Rewards() {
         <Card className="lg:col-span-2 bg-gradient-to-r from-caesar-gold/10 to-caesar-gold-muted/10 border-caesar-gold/20">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Bot className="w-6 h-6 text-caesar-gold" />
+              <img src={caesarBotLogo} alt="CaesarBot" className="w-6 h-6" />
               <span>Caesar Points Overview</span>
             </CardTitle>
           </CardHeader>

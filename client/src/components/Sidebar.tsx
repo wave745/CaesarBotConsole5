@@ -1,6 +1,7 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Link, useLocation } from "wouter";
-import { Bot, BarChart3, Rocket, Brain, Target, Wallet, Search, Gift, Bolt, Settings } from "lucide-react";
+import { BarChart3, Rocket, Brain, Target, Wallet, Search, Gift, Bolt, Settings } from "lucide-react";
+import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755561624266.png";
 
 export function Sidebar() {
   const { sidebarCollapsed, user } = useAppStore();
@@ -29,7 +30,7 @@ export function Sidebar() {
       <div className="p-6 border-b border-gray-800">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-r from-caesar-gold to-caesar-gold-muted rounded-full flex items-center justify-center">
-            <Bot className="text-caesar-black w-5 h-5" />
+            <img src={caesarBotLogo} alt="CaesarBot" className="w-6 h-6" />
           </div>
           <div>
             <div className="text-sm font-medium font-mono" data-testid="user-wallet-address">
