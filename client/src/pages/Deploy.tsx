@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,15 +13,30 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Rocket, Upload, Twitter, Globe, CheckCircle, Plus, Trash2, Loader2, AlertTriangle, ExternalLink, Shield, Copy } from "lucide-react";
+import { Rocket, Upload, Twitter, Globe, CheckCircle, Plus, Trash2, Loader2, AlertTriangle, ExternalLink, Shield, Copy, Wallet, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { tokenDeploymentSchema, type TokenDeploymentForm } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { useWallet } from "@/providers/WalletProvider";
+import { useAppStore } from "@/store/useAppStore";
+
+interface WalletData {
+  pubkey: string;
+  label: string;
+  is_burner: boolean;
+  sol_balance: number;
+  token_balances: any[];
+  user_wallet: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface MultiWallet {
   id: string;
-  privateKey: string;
+  walletAddress: string;
+  label: string;
   buyAmount: number;
+  selected: boolean;
 }
 
 interface DeploymentResult {
@@ -41,9 +56,38 @@ export function Deploy() {
   const [imageUri, setImageUri] = useState<string>("");
   const [multiWallets, setMultiWallets] = useState<MultiWallet[]>([]);
   const [deploymentResult, setDeploymentResult] = useState<DeploymentResult | null>(null);
-  const [burnerWallets, setBurnerWallets] = useState<{ publicKey: string; privateKey: string }[]>([]);
+  const [selectedDevWallet, setSelectedDevWallet] = useState<string>("");
+  const [isDevnet, setIsDevnet] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  const { user } = useAppStore();
+
+  // Load user wallets from wallet operations
+  const { data: userWallets = [], isLoading: walletsLoading, refetch: refetchWallets } = useQuery({
+    queryKey: ['user-wallets', user?.walletAddress, isDevnet],
+    queryFn: async () => {
+      if (!user?.walletAddress) throw new Error('User not authenticated');
+      
+      const response = await fetch('/api/wallets/live-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userWallet: user.walletAddress,
+          network: isDevnet ? 'devnet' : 'mainnet-beta'
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch wallets');
+      }
+      
+      const data = await response.json();
+      return data.wallets || [];
+    },
+    enabled: !!user?.walletAddress,
+    retry: 1,
+  });
 
   const form = useForm<TokenDeploymentForm>({
     resolver: zodResolver(tokenDeploymentSchema),
@@ -154,7 +198,6 @@ export function Deploy() {
       if (data.error) {
         toast.error(`Wallet generation failed: ${data.error}`);
       } else {
-        setBurnerWallets(prev => [...prev, data]);
         toast.success('Burner wallet generated!');
       }
     },
@@ -181,11 +224,13 @@ export function Deploy() {
     }
   };
 
-  const addMultiWallet = () => {
+  const addMultiWallet = (walletData: WalletData) => {
     const newWallet: MultiWallet = {
-      id: Date.now().toString(),
-      privateKey: '',
+      id: walletData.pubkey,
+      walletAddress: walletData.pubkey,
+      label: walletData.label,
       buyAmount: 0.01,
+      selected: true,
     };
     setMultiWallets(prev => [...prev, newWallet]);
   };
@@ -194,10 +239,24 @@ export function Deploy() {
     setMultiWallets(prev => prev.filter(w => w.id !== id));
   };
 
-  const updateMultiWallet = (id: string, field: keyof MultiWallet, value: string | number) => {
+  const updateMultiWallet = (id: string, field: keyof MultiWallet, value: string | number | boolean) => {
     setMultiWallets(prev => prev.map(w => 
       w.id === id ? { ...w, [field]: value } : w
     ));
+  };
+
+  const toggleWalletSelection = (walletAddress: string) => {
+    const wallet = userWallets.find(w => w.pubkey === walletAddress);
+    if (!wallet) return;
+
+    const existingIndex = multiWallets.findIndex(w => w.walletAddress === walletAddress);
+    if (existingIndex >= 0) {
+      // Remove wallet
+      setMultiWallets(prev => prev.filter(w => w.walletAddress !== walletAddress));
+    } else {
+      // Add wallet
+      addMultiWallet(wallet);
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -233,25 +292,24 @@ ${deploymentData.explorerUrl}
   const handleMultiWalletBuys = async (mintAddress: string) => {
     const selectedLaunchpad = form.getValues('launchpad');
     
-    for (const wallet of multiWallets) {
-      if (wallet.privateKey && wallet.buyAmount > 0) {
-        try {
-          await fetch('/api/deploy/buy-token', {
-            method: 'POST',
-            body: JSON.stringify({
-              tokenMint: mintAddress,
-              amount: wallet.buyAmount,
-              slippage: form.getValues('slippage'),
-              priorityFee: form.getValues('priorityFee'),
-              pool: selectedLaunchpad,
-            }),
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-        } catch (error) {
-          console.error(`Multi-wallet buy failed for wallet ${wallet.id}:`, error);
-        }
+    for (const wallet of multiWallets.filter(w => w.selected && w.buyAmount > 0)) {
+      try {
+        await fetch('/api/deploy/buy-token', {
+          method: 'POST',
+          body: JSON.stringify({
+            tokenMint: mintAddress,
+            walletAddress: wallet.walletAddress,
+            amount: wallet.buyAmount,
+            slippage: form.getValues('slippage'),
+            priorityFee: form.getValues('priorityFee'),
+            pool: selectedLaunchpad,
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      } catch (error) {
+        console.error(`Multi-wallet buy failed for wallet ${wallet.label}:`, error);
       }
     }
   };
@@ -265,7 +323,9 @@ ${deploymentData.explorerUrl}
     const deploymentData = {
       ...data,
       imageUri,
-      multiWallets: multiWallets.filter(w => w.privateKey),
+      devWallet: selectedDevWallet,
+      multiWallets: multiWallets.filter(w => w.selected),
+      network: isDevnet ? 'devnet' : 'mainnet-beta',
     };
 
     deployTokenMutation.mutate(deploymentData);
@@ -274,7 +334,8 @@ ${deploymentData.explorerUrl}
   const isFormValid = form.formState.isValid && 
     form.watch('name') && 
     form.watch('symbol') && 
-    form.watch('launchpad');
+    form.watch('launchpad') &&
+    selectedDevWallet;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-4">
@@ -621,7 +682,10 @@ ${deploymentData.explorerUrl}
                           <FormControl>
                             <Switch
                               checked={field.value}
-                              onCheckedChange={field.onChange}
+                              onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                setIsDevnet(checked);
+                              }}
                             />
                           </FormControl>
                         </FormItem>
@@ -647,6 +711,48 @@ ${deploymentData.explorerUrl}
                         </FormItem>
                       )}
                     />
+                  </div>
+
+                  {/* Developer Wallet Selection */}
+                  <div className="space-y-4">
+                    <Label>Developer Wallet (Required for Deployment)</Label>
+                    {walletsLoading ? (
+                      <div className="p-4 bg-gray-800/50 rounded-lg text-center">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-400">Loading wallets...</p>
+                      </div>
+                    ) : userWallets.length === 0 ? (
+                      <div className="p-4 bg-gray-800/50 rounded-lg text-center">
+                        <Wallet className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-400 mb-2">No wallets found</p>
+                        <p className="text-xs text-gray-500">Create a wallet in Wallet Operations first</p>
+                      </div>
+                    ) : (
+                      <Select value={selectedDevWallet} onValueChange={setSelectedDevWallet}>
+                        <SelectTrigger className="bg-gray-800 border-gray-700">
+                          <SelectValue placeholder="Select developer wallet for deployment" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userWallets.map((wallet) => (
+                            <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
+                              <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-mono text-sm">
+                                    {wallet.label || 'Wallet'}
+                                  </span>
+                                  {wallet.is_burner && (
+                                    <Badge variant="outline" className="text-xs">Burner</Badge>
+                                  )}
+                                </div>
+                                <span className="text-xs text-gray-400 ml-2">
+                                  {wallet.sol_balance.toFixed(4)} SOL
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -675,10 +781,11 @@ ${deploymentData.explorerUrl}
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={addMultiWallet}
+                        onClick={refetchWallets}
+                        disabled={walletsLoading}
                       >
-                        <Plus className="w-4 h-4" />
-                        Add Wallet
+                        <RefreshCw className="w-4 h-4" />
+                        Refresh Wallets
                       </Button>
                     </div>
                   </CardTitle>
@@ -691,62 +798,115 @@ ${deploymentData.explorerUrl}
                     </AlertDescription>
                   </Alert>
 
-                  {burnerWallets.length > 0 && (
-                    <div className="space-y-2">
-                      <Label>Generated Burner Wallets:</Label>
-                      {burnerWallets.map((wallet, index) => (
-                        <div key={index} className="p-3 bg-gray-800 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-mono">{wallet.publicKey}</span>
-                            <Button size="sm" variant="ghost" onClick={() => copyToClipboard(wallet.privateKey)}>
-                              <Copy className="w-3 h-3" />
+                  {/* User Wallets Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Available Wallets ({userWallets.length})</Label>
+                      <div className="text-sm text-gray-400">
+                        Network: {isDevnet ? 'Devnet' : 'Mainnet'}
+                      </div>
+                    </div>
+                    
+                    {walletsLoading ? (
+                      <div className="text-center py-4">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-400">Loading wallets...</p>
+                      </div>
+                    ) : userWallets.length === 0 ? (
+                      <div className="text-center py-8 bg-gray-800/50 rounded-lg">
+                        <Wallet className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-400 mb-2">No wallets found</p>
+                        <p className="text-xs text-gray-500">Create wallets in Wallet Operations first</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                        {userWallets.map((wallet) => {
+                          const isSelected = multiWallets.some(w => w.walletAddress === wallet.pubkey);
+                          return (
+                            <div 
+                              key={wallet.pubkey} 
+                              className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                                isSelected 
+                                  ? 'bg-caesar-gold/10 border-caesar-gold/30' 
+                                  : 'bg-gray-800 border-gray-700 hover:border-gray-600'
+                              }`}
+                              onClick={() => toggleWalletSelection(wallet.pubkey)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-mono text-sm">{wallet.label || 'Wallet'}</span>
+                                    {wallet.is_burner && (
+                                      <Badge variant="outline" className="text-xs">Burner</Badge>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-400 font-mono">
+                                    {wallet.pubkey.slice(0, 8)}...{wallet.pubkey.slice(-8)}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-medium">
+                                    {wallet.sol_balance.toFixed(4)} SOL
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {wallet.token_balances?.length || 0} tokens
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Wallets Configuration */}
+                  {multiWallets.length > 0 && (
+                    <div className="space-y-3">
+                      <Label>Selected Wallets ({multiWallets.length})</Label>
+                      {multiWallets.map((wallet) => (
+                        <div key={wallet.id} className="p-4 border border-caesar-gold/30 bg-caesar-gold/5 rounded-lg space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Label className="font-mono text-sm">{wallet.label}</Label>
+                              <span className="text-xs text-gray-400 font-mono">
+                                {wallet.walletAddress.slice(0, 8)}...{wallet.walletAddress.slice(-8)}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMultiWallet(wallet.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
-                          <div className="text-xs text-gray-400">Private key copied to use below</div>
+                          <div className="flex items-center space-x-4">
+                            <div className="flex-1">
+                              <Label className="text-xs text-gray-400">Buy Amount (SOL)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="10"
+                                value={wallet.buyAmount}
+                                onChange={(e) => updateMultiWallet(wallet.id, 'buyAmount', parseFloat(e.target.value) || 0)}
+                                className="bg-gray-800 border-gray-700 focus:border-caesar-gold"
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2 pt-5">
+                              <Switch
+                                checked={wallet.selected}
+                                onCheckedChange={(checked) => updateMultiWallet(wallet.id, 'selected', checked)}
+                              />
+                              <Label className="text-xs">Enabled</Label>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
-
-                  {multiWallets.map((wallet) => (
-                    <div key={wallet.id} className="p-4 border border-gray-700 rounded-lg space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label>Wallet {wallet.id}</Label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeMultiWallet(wallet.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <Label>Private Key</Label>
-                          <Input
-                            type="password"
-                            placeholder="Private key (base58)"
-                            value={wallet.privateKey}
-                            onChange={(e) => updateMultiWallet(wallet.id, 'privateKey', e.target.value)}
-                            className="bg-gray-800 border-gray-700"
-                          />
-                        </div>
-                        <div>
-                          <Label>Buy Amount (SOL)</Label>
-                          <Input
-                            type="number"
-                            step="0.001"
-                            min="0.001"
-                            max="1"
-                            value={wallet.buyAmount}
-                            onChange={(e) => updateMultiWallet(wallet.id, 'buyAmount', parseFloat(e.target.value))}
-                            className="bg-gray-800 border-gray-700"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
                 </CardContent>
               </Card>
 
