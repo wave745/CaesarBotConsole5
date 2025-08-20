@@ -143,9 +143,28 @@ export function Deploy() {
     },
   });
 
+  // Metadata upload mutation
+  const uploadMetadataMutation = useMutation({
+    mutationFn: async (data: { name: string; symbol: string; description: string; imageUri: string; twitter?: string; telegram?: string; website?: string }) => {
+      const response = await fetch('/api/deploy/upload-metadata', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Metadata upload failed');
+      }
+      
+      return response.json();
+    },
+  });
+
   // Token deployment mutation
   const deployTokenMutation = useMutation({
-    mutationFn: async (data: TokenDeploymentForm & { imageUri: string }) => {
+    mutationFn: async (data: TokenDeploymentForm & { imageUri: string; metadataUri: string }) => {
       const response = await fetch('/api/deploy/create-token', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -160,18 +179,54 @@ export function Deploy() {
       
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setDeploymentResult(data);
-      toast.success(`Token ${form.getValues('symbol')} deployed successfully!`);
+      
+      // Post-deployment quality check
+      try {
+        toast.loading('Running security check...', { id: 'deploy-process' });
+        const rugCheckResponse = await fetch(`/api/rugcheck/${data.mint}`);
+        const rugCheckData = await rugCheckResponse.json();
+        
+        if (rugCheckData.score >= 80) {
+          toast.success(`Token deployed successfully! Safety score: ${rugCheckData.score}/100`, { id: 'deploy-process' });
+        } else {
+          toast.error(`Token deployed but safety score is low: ${rugCheckData.score}/100`, { id: 'deploy-process' });
+        }
+        
+        // Update deployment result with safety check
+        setDeploymentResult(prev => prev ? { ...prev, safetyCheck: rugCheckData } : null);
+      } catch (error) {
+        console.error('RugCheck failed:', error);
+      }
       
       // Auto-post to Twitter if enabled
       if (form.getValues('autoPost')) {
-        autoPostToTwitter(data);
-      }
-      
-      // Handle multi-wallet buys
-      if (multiWallets.length > 0) {
-        handleMultiWalletBuys(data.mint);
+        try {
+          toast.loading('Posting to Twitter...', { id: 'twitter-post' });
+          
+          const formData = form.getValues();
+          const message = `🚀 Just launched ${formData.symbol} on ${formData.launchpad}!\n\n📊 ${formData.name}\n💰 Buy Amount: ${formData.devBuyAmount} SOL\n🔗 ${data.explorerUrl}\n\n#SolanaDefi #${formData.symbol} #PumpFun`;
+          
+          const response = await fetch('/api/twitter/post', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message,
+              tokenMint: data.mint,
+            }),
+          });
+          
+          if (response.ok) {
+            toast.success('Posted to Twitter successfully!', { id: 'twitter-post' });
+          } else {
+            throw new Error('Twitter API failed');
+          }
+        } catch (error) {
+          toast.error('Failed to auto-post to Twitter', { id: 'twitter-post' });
+        }
       }
       
       queryClient.invalidateQueries({ queryKey: ['/api/deployments'] });
@@ -320,15 +375,43 @@ ${deploymentData.explorerUrl}
       return;
     }
 
-    const deploymentData = {
-      ...data,
-      imageUri,
-      devWallet: selectedDevWallet,
-      multiWallets: multiWallets.filter(w => w.selected),
-      network: isDevnet ? 'devnet' : 'mainnet-beta',
-    };
+    try {
+      // Step 1: Upload metadata to IPFS
+      toast.loading('Uploading metadata to IPFS...', { id: 'deploy-process' });
+      
+      const metadataResult = await uploadMetadataMutation.mutateAsync({
+        name: data.name,
+        symbol: data.symbol,
+        description: data.description,
+        imageUri,
+        twitter: data.twitter || '',
+        telegram: data.telegram || '',
+        website: data.website || '',
+      });
 
-    deployTokenMutation.mutate(deploymentData);
+      // Step 2: Deploy token
+      toast.loading('Creating token on blockchain...', { id: 'deploy-process' });
+      
+      const deploymentData = {
+        ...data,
+        imageUri,
+        metadataUri: metadataResult.uri,
+        devWallet: selectedDevWallet,
+        multiWallets: multiWallets.filter(w => w.selected),
+        network: isDevnet ? 'devnet' : 'mainnet-beta',
+      };
+
+      const result = await deployTokenMutation.mutateAsync(deploymentData);
+      
+      // Step 3: Execute multi-wallet buys if configured
+      if (multiWallets.length > 0) {
+        toast.loading('Executing bundled transactions...', { id: 'deploy-process' });
+        await handleMultiWalletBuys(result.mint);
+      }
+      
+    } catch (error: any) {
+      toast.error(`Deployment failed: ${error.message}`, { id: 'deploy-process' });
+    }
   };
 
   const isFormValid = form.formState.isValid && 
@@ -733,7 +816,7 @@ ${deploymentData.explorerUrl}
                           <SelectValue placeholder="Select developer wallet for deployment" />
                         </SelectTrigger>
                         <SelectContent>
-                          {userWallets.map((wallet) => (
+                          {userWallets.map((wallet: WalletData) => (
                             <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
                               <div className="flex items-center justify-between w-full">
                                 <div className="flex items-center space-x-2">
@@ -781,7 +864,7 @@ ${deploymentData.explorerUrl}
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={refetchWallets}
+                        onClick={() => refetchWallets()}
                         disabled={walletsLoading}
                       >
                         <RefreshCw className="w-4 h-4" />
@@ -820,8 +903,8 @@ ${deploymentData.explorerUrl}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                        {userWallets.map((wallet) => {
-                          const isSelected = multiWallets.some(w => w.walletAddress === wallet.pubkey);
+                        {userWallets.map((wallet: WalletData) => {
+                          const isSelected = multiWallets.some((w: MultiWallet) => w.walletAddress === wallet.pubkey);
                           return (
                             <div 
                               key={wallet.pubkey} 
@@ -913,13 +996,13 @@ ${deploymentData.explorerUrl}
               {/* Deploy Button */}
               <Button
                 type="submit"
-                disabled={!isFormValid || deployTokenMutation.isPending || uploadImageMutation.isPending}
+                disabled={!isFormValid || deployTokenMutation.isPending || uploadImageMutation.isPending || uploadMetadataMutation.isPending}
                 className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted font-medium text-lg py-6"
               >
-                {deployTokenMutation.isPending ? (
+                {(deployTokenMutation.isPending || uploadMetadataMutation.isPending) ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Deploying Token...
+                    {uploadMetadataMutation.isPending ? 'Uploading Metadata...' : 'Deploying Token...'}
                   </>
                 ) : (
                   <>
