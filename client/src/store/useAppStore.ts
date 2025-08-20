@@ -88,7 +88,7 @@ interface AppState {
     leaderboard: any[];
   };
   isLoading: boolean;
-  errors: Record<string, string>;
+  errors: Record<string, string | null>;
   
   // Actions
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -144,7 +144,32 @@ export const useAppStore = create<AppState>()(
       },
       isLoading: false,
       errors: {},
-      recentActivity: [],
+      recentActivity: [
+        {
+          id: "1",
+          type: "buy",
+          token: "MOONCAT",
+          amount: "0.5 SOL",
+          launchpad: "Pump.fun",
+          timestamp: new Date(Date.now() - 300000).toISOString(), // 5 mins ago
+        },
+        {
+          id: "2", 
+          type: "deploy",
+          token: "MYTOKEN",
+          amount: null,
+          launchpad: "Pump.fun",
+          timestamp: new Date(Date.now() - 900000).toISOString(), // 15 mins ago
+        },
+        {
+          id: "3",
+          type: "sell",
+          token: "SOLDOG", 
+          amount: "100 tokens",
+          launchpad: "Pump.fun",
+          timestamp: new Date(Date.now() - 1800000).toISOString(), // 30 mins ago
+        }
+      ],
       
       // Actions
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),

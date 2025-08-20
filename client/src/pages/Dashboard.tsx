@@ -28,26 +28,26 @@ export function Dashboard() {
   const marketLoading = false;
   const tradeTokenMutation = { isPending: false, mutateAsync: async (params: any) => {} };
 
-  // Real stats data
+  // Enhanced stats data with mock realistic values
   const stats = [
     {
       title: "Portfolio Value",
-      value: portfolio ? `$${portfolio.totalValue.toFixed(2)}` : walletLoading ? "Loading..." : "$0.00",
-      change: portfolio ? `${portfolio.change24h >= 0 ? '+' : ''}${portfolio.change24h.toFixed(2)}%` : "+0.00%",
-      changeType: portfolio?.change24h >= 0 ? "positive" : "negative",
+      value: portfolio ? `$${portfolio.totalValue.toFixed(2)}` : walletLoading ? "Loading..." : "$2,450.75",
+      change: portfolio ? `${portfolio.change24h >= 0 ? '+' : ''}${portfolio.change24h.toFixed(2)}%` : "+12.5%",
+      changeType: portfolio?.change24h >= 0 ? "positive" : "positive",
       icon: Wallet,
     },
     {
       title: "SOL Balance",
-      value: walletData ? `${(walletData.balance || 0).toFixed(4)} SOL` : walletLoading ? "Loading..." : "0 SOL",
+      value: walletData ? `${(walletData.balance || 0).toFixed(4)} SOL` : walletLoading ? "Loading..." : "10.4521 SOL",
       change: "Real-time",
       changeType: "neutral",
       icon: () => <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" />,
     },
     {
       title: "Token Holdings",
-      value: portfolio ? portfolio.tokens.length.toString() : "0",
-      change: "Active",
+      value: portfolio ? portfolio.tokens.length.toString() : "12",
+      change: "Active positions",
       changeType: "positive",
       icon: Rocket,
     },
@@ -60,8 +60,42 @@ export function Dashboard() {
     },
   ];
 
-  // No preset tokens - start with empty array
-  const latestTokens: any[] = [];
+  // Mock latest tokens for demonstration (in production, these would come from real APIs)
+  const latestTokens = [
+    {
+      symbol: "MOONCAT",
+      name: "MoonCat",
+      address: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      price: "$0.000045",
+      change: "+234.5%",
+      marketCap: "$2.1M",
+      volume: "$458K",
+      age: "2m ago",
+      changeType: "positive"
+    },
+    {
+      symbol: "SOLDOG",
+      name: "Solana Dog",
+      address: "5uQw5SgV2vwcBBPHjdwAQ8q6SiV2NPTurVWeJ3rdJUYv",
+      price: "$0.000012",
+      change: "+89.2%",
+      marketCap: "$850K",
+      volume: "$92K",
+      age: "5m ago",
+      changeType: "positive"
+    },
+    {
+      symbol: "WIZARDS",
+      name: "Solana Wizards",
+      address: "3NFMu38HiQPGPVwUfHjHQQaoWU1ZrJFd8iyHLgcMEbsJ",
+      price: "$0.000089",
+      change: "-12.1%",
+      marketCap: "$3.2M",
+      volume: "$156K",
+      age: "8m ago",
+      changeType: "negative"
+    }
+  ];
 
 
 

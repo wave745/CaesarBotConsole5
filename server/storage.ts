@@ -208,10 +208,9 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const wallet: Wallet = {
       ...insertWallet,
-      name: insertWallet.name || null,
+      isBurner: insertWallet.isBurner ?? false,
       id,
       balance: "0",
-      isActive: false,
       createdAt: new Date()
     };
     this.wallets.set(id, wallet);
