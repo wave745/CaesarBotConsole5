@@ -12,7 +12,10 @@ import { Scanner } from "@/pages/Scanner";
 import { Rewards } from "@/pages/Rewards";
 import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
+import { WalletTest } from "@/pages/WalletTest";
 import { Toaster as HotToaster } from "react-hot-toast";
+import { WalletProvider } from "@/providers/WalletProvider";
+import { useAppStore } from "@/store/useAppStore";
 
 function Router() {
   return (
@@ -27,6 +30,7 @@ function Router() {
         <Route path="/rewards" component={Rewards} />
         <Route path="/tools" component={Dashboard} />
         <Route path="/settings" component={Settings} />
+        <Route path="/wallet-test" component={WalletTest} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -34,23 +38,27 @@ function Router() {
 }
 
 function App() {
+  const { user } = useAppStore();
+
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <HotToaster 
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#1f2937',
-              color: '#f9fafb',
-              border: '1px solid #374151',
-            },
-          }}
-        />
-        <Router />
-      </TooltipProvider>
+      <WalletProvider network="devnet">
+        <TooltipProvider>
+          <Toaster />
+          <HotToaster 
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#1f2937',
+                color: '#f9fafb',
+                border: '1px solid #374151',
+              },
+            }}
+          />
+          <Router />
+        </TooltipProvider>
+      </WalletProvider>
     </QueryClientProvider>
   );
 }

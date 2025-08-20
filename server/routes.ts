@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertTokenSchema, insertSnipeSchema, insertDeploymentSchema, insertWalletSchema } from "@shared/schema";
 import { z } from "zod";
 import { heliusAPI, birdeyeAPI, jupiterAPI, openaiService, supabaseService } from './services/api';
+import { authRoutes } from "./routes/auth.js";
 import multer from 'multer';
 
 // Configure multer for file uploads
@@ -22,6 +23,9 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication routes
+  app.use(authRoutes);
+  
   // Real API endpoints
   
   // Wallet endpoints
