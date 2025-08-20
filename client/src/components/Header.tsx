@@ -1,9 +1,10 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Menu, Search, Rocket, Bell, Copy } from "lucide-react";
+import { Menu, Search, Bell, Copy } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { WalletConnectButton } from "@/components/WalletConnectButton";
 import caesarBotLogo from "@assets/CaesarBotLogo-removebg-preview_1755538261130.png";
 
 export function Header() {
@@ -61,16 +62,15 @@ export function Header() {
 
         {/* Header Actions */}
         <div className="flex items-center space-x-2 lg:space-x-4">
-          {/* Quick Deploy */}
-          <Button 
-            onClick={handleQuickDeploy}
-            className="bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted font-medium"
-            size="sm"
-            data-testid="quick-deploy-button"
-          >
-            <Rocket className="w-4 h-4 lg:mr-2" />
-            <span className="hidden lg:inline">Quick Deploy</span>
-          </Button>
+          {/* Network Toggle */}
+          <div className="flex items-center">
+            <div className="text-xs px-2 py-1 rounded-md bg-gray-800 border border-gray-700">
+              <span className="text-yellow-400">●</span> Devnet
+            </div>
+          </div>
+
+          {/* Wallet Connection */}
+          <WalletConnectButton />
 
           {/* Notifications */}
           <Button
@@ -82,28 +82,6 @@ export function Header() {
             <Bell className="w-5 h-5" />
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
           </Button>
-
-          {/* Wallet Connection */}
-          {isWalletConnected && user && (
-            <div className="bg-gray-800 border border-gray-700 rounded-lg px-2 lg:px-4 py-2 flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm font-mono hidden lg:inline" data-testid="wallet-address-display">
-                {user.walletAddress}
-              </span>
-              <span className="text-xs font-mono lg:hidden" data-testid="wallet-address-display-mobile">
-                {user.walletAddress.slice(0, 4)}...{user.walletAddress.slice(-4)}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopyWallet}
-                className="text-gray-400 hover:text-white p-1"
-                data-testid="copy-wallet-button"
-              >
-                <Copy className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
         </div>
       </div>
     </header>

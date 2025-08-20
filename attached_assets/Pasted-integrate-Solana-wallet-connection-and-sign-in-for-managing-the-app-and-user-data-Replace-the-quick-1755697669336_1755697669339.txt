@@ -1,0 +1,21 @@
+integrate Solana wallet connection and sign-in for managing the app and user data. Replace the quick deploy button in the header with a "Connect Wallet" button (using @solana/wallet-adapter-react-ui WalletMultiButton). Use wallet sign-in to authenticate users and tie Supabase data (e.g., users table with { wallet: string primary, points: number }) for secure access.
+
+Tech Stack Additions: @solana/wallet-adapter-react, @solana/wallet-adapter-react-ui, @solana/wallet-adapter-wallets (Phantom, Backpack, Solflare).
+Prerequisites: Add to .env: RPC_ENDPOINT (https://api.mainnet-beta.solana.com or devnet toggle).
+Install deps: npm install @solana/wallet-adapter-react @solana/wallet-adapter-react-ui @solana/wallet-adapter-wallets.
+
+Updated Files:
+1. **RootLayout (/app/layout.tsx)**: Wrap app with ConnectionProvider (endpoint from env), WalletProvider (wallets array: Phantom, Backpack, Solflare), WalletModalProvider. Add middleware for auth (check Supabase session or wallet connection for protected routes like /dashboard, /wallet-operations).
+
+2. **Header (/components/Header.tsx)**: Replace quick deploy button with WalletMultiButton (styled gold/black). Show "Connected: [truncated pubkey]" when connected, with disconnect. Keep wallet display, live search (token/wallet), notifications, theme switch icons. Use Framer Motion for hover glow.
+
+3. **API Routes**:
+   - /api/auth/nonce/route.ts: GET to generate nonce (live Solana blockhash via @solana/web3.js getLatestBlockhash, return { nonce }).
+   - /api/auth/verify/route.ts: POST with { publicKey, signature, nonce }, verify signature (nacl.sign.detached.verify or ed25519), link to Supabase user (upsert { wallet: publicKey }), create session.
+   - Handle errors (e.g., invalid signature) with JSON responses.
+
+4. **Wallet Operations Integration**: In Wallet Ops, use connected wallet pubkey as user_wallet for Supabase queries (live insert/select/update). No mocks – all data live from Supabase/Helius.
+
+Ensure live data: Supabase for wallet storage/realtime (postgres_changes subscriptions), Helius for balances (getBalance/getAssetsByOwner post requests). No mocks anywhere – fetch/save real data, error-handle with toasts. Devnet/mainnet toggle in UI (dynamic RPC). Scalability for 10,000+ users (optimized queries, caching in Zustand).
+
+Output complete code for updated files with imports, error-handling, and dark/gold theme. Make sure wallet connection is required for app management (e.g., RLS in Supabase ties to wallet).
