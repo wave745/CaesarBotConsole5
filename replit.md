@@ -140,7 +140,11 @@ The development environment includes **Replit-specific plugins** for enhanced de
 
 ## Recent Changes
 
+- August 20, 2025: Complete removal of all mock data and preset tokens
+  - Removed mock portfolio values, token feeds, and activity history from Dashboard
+  - Cleaned mock wallet addresses and snipe history from all pages
+  - Updated store to use empty states until real APIs are configured
+  - Fixed all TypeScript errors resulting from data structure changes
 - August 2025: Complete codebase audit and documentation
-- Identified current mock data state and real API integration points
 - Confirmed all core features are implemented and functional
 - Documented system architecture and component relationships
