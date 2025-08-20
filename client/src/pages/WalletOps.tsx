@@ -1,1391 +1,1011 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  Wallet,
-  Plus,
-  Copy,
-  Download,
-  Upload,
-  Trash2,
-  Send,
-  Users,
-  Shield,
-  AlertTriangle,
-  ExternalLink,
-  Loader2,
-  CheckCircle,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  Zap,
-  DollarSign,
-  Settings,
-  Filter,
-  Search,
-  QrCode,
-  Shuffle,
-  TrendingUp,
-  ArrowRightLeft,
-} from "lucide-react";
-import { toast } from "react-hot-toast";
-import CryptoJS from 'crypto-js';
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { FixedSizeList as List } from 'react-window';
-import {
-  WalletData,
-  WalletTransfer,
-  WalletMultisend,
-  CreateWallets,
-  ImportWallet,
-  walletTransferSchema,
-  walletMultisendSchema,
-  createWalletsSchema,
-  importWalletSchema,
-} from "@shared/schema";
-import { z } from "zod";
+import { Wallet, Plus, Download, Settings, Copy, Trash2, DollarSign, Send, RefreshCw, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { motion } from 'framer-motion';
+import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
+import { useWallet } from '@/providers/WalletProvider';
+import { useAppStore } from '@/store/useAppStore';
+import CryptoJS from 'crypto-js';
 
-// Enhanced schemas for professional wallet operations
-const enhancedCreateWalletsSchema = createWalletsSchema.extend({
-  count: z.number().min(1).max(100, "Maximum 100 wallets allowed"),
-  labelPrefix: z.string().min(1, "Label prefix required"),
-  isBurner: z.boolean().default(true),
-});
-
-const enhancedImportWalletSchema = importWalletSchema.extend({
-  privateKey: z.string().min(44, "Invalid private key format"),
-  label: z.string().min(1, "Label required"),
-  isBurner: z.boolean().default(false),
-});
-
-const quickBuySchema = z.object({
-  fromWallet: z.string().min(1, "Select wallet"),
-  tokenMint: z.string().min(32, "Invalid token address"),
-  amountType: z.enum(["fixed", "range"]),
-  fixedAmount: z.number().min(0),
-  minAmount: z.number().min(0),
-  maxAmount: z.number().min(0),
-  slippage: z.number().min(0.1).max(50).default(1),
-});
-
-const consolidateSchema = z.object({
-  targetWallet: z.string().min(1, "Select target wallet"),
-  minBalance: z.number().min(0).default(0.001),
-  keepAmount: z.number().min(0).default(0.001),
-});
-
-type EnhancedCreateWallets = z.infer<typeof enhancedCreateWalletsSchema>;
-type EnhancedImportWallet = z.infer<typeof enhancedImportWalletSchema>;
-type QuickBuyData = z.infer<typeof quickBuySchema>;
-type ConsolidateData = z.infer<typeof consolidateSchema>;
-
-interface EnhancedWallet extends WalletData {
-  balance: number;
-  tokenBalances: Record<string, number>;
-  isLoading?: boolean;
-  lastUpdate?: Date;
-  flashColor?: 'green' | 'red' | null;
+// Live Data Integration Types
+interface WalletData {
+  pubkey: string;
+  label: string;
+  is_burner: boolean;
+  sol_balance: number;
+  token_balances: TokenBalance[];
+  user_wallet: string;
+  created_at: string;
+  updated_at: string;
 }
 
-// Advanced wallet operations component
+interface TokenBalance {
+  mint: string;
+  symbol: string;
+  amount: number;
+  decimals: number;
+  uiAmount: number;
+  value?: number;
+}
+
+// Form Schemas
+const createWalletSchema = z.object({
+  count: z.number().min(1).max(100),
+  isBurner: z.boolean(),
+});
+
+const importWalletSchema = z.object({
+  privateKey: z.string().min(1, 'Private key is required'),
+  label: z.string().min(1, 'Label is required'),
+  isBurner: z.boolean(),
+});
+
+const transferSchema = z.object({
+  fromWallet: z.string().min(1, 'Please select a wallet'),
+  toAddress: z.string().min(1, 'Recipient address is required'),
+  amount: z.number().min(0.000000001, 'Amount must be greater than 0'),
+  tokenMint: z.string().optional(),
+});
+
+type CreateWalletForm = z.infer<typeof createWalletSchema>;
+type ImportWalletForm = z.infer<typeof importWalletSchema>;
+type TransferForm = z.infer<typeof transferSchema>;
+
 export function WalletOps() {
+  const [isDevnet, setIsDevnet] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'pubkey' | 'label' | 'sol_balance'>('pubkey');
+  const [flashingWallets, setFlashingWallets] = useState<Set<string>>(new Set());
+  const [showPrivateKeys, setShowPrivateKeys] = useState(false);
+  const [balanceUpdates, setBalanceUpdates] = useState<Map<string, number>>(new Map());
+  
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // State management
-  const [selectedWallets, setSelectedWallets] = useState<string[]>([]);
-  const [showPrivateKeys, setShowPrivateKeys] = useState<Record<string, boolean>>({});
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<'label' | 'balance' | 'created'>('balance');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [filterBurner, setFilterBurner] = useState<'all' | 'burner' | 'regular'>('all');
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const [isQuickBuyOpen, setIsQuickBuyOpen] = useState(false);
-  const [isConsolidateOpen, setIsConsolidateOpen] = useState(false);
-  const [networkMode, setNetworkMode] = useState<'devnet' | 'mainnet'>('devnet');
+  const { connection } = useWallet();
+  const { user } = useAppStore();
 
-  // Security and encryption
-  const [encryptionKey] = useState(() => CryptoJS.lib.WordArray.random(256/8).toString());
-  
-  // Privacy warning on mount
-  useEffect(() => {
-    toast("🔒 Use burner wallets for privacy. VPN recommended for enhanced anonymity.", {
-      duration: 8000,
-      style: { 
-        background: '#1f2937', 
-        color: '#fbbf24',
-        border: '1px solid #d97706'
-      },
-    });
-  }, []);
+  // Get network-specific connection
+  const getConnection = useCallback(() => {
+    const endpoint = isDevnet 
+      ? import.meta.env.VITE_RPC_ENDPOINT || 'https://api.devnet.solana.com'
+      : 'https://api.mainnet-beta.solana.com';
+    return new Connection(endpoint, 'confirmed');
+  }, [isDevnet]);
 
-  // Real-time wallet data fetching
-  const { data: wallets = [], isLoading: walletsLoading, refetch: refetchWallets } = useQuery({
-    queryKey: ['/api/wallets', networkMode],
+  // Live wallet data fetching with Supabase + Helius integration
+  const { data: wallets = [], isLoading, refetch } = useQuery({
+    queryKey: ['live-wallets', user?.walletAddress, isDevnet],
     queryFn: async () => {
-      const response = await fetch(`/api/wallets?network=${networkMode}`);
-      if (!response.ok) throw new Error('Failed to fetch wallets');
+      if (!user?.walletAddress) throw new Error('User not authenticated');
+      
+      const response = await fetch('/api/wallets/live-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userWallet: user.walletAddress,
+          network: isDevnet ? 'devnet' : 'mainnet-beta'
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch wallets');
+      }
+      
       const data = await response.json();
       
-      // Simulate real-time balance updates (in production, use Helius WebSocket)
-      return data.map((wallet: any) => ({
-        ...wallet,
-        balance: Math.random() * 10, // This would come from Helius API
-        tokenBalances: {}, // Token balances from Helius
-        lastUpdate: new Date(),
-      }));
+      // Start live balance monitoring
+      if (data.wallets?.length > 0) {
+        startLiveBalanceMonitoring(data.wallets);
+      }
+      
+      return data.wallets || [];
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    enabled: !!user?.walletAddress,
+    refetchInterval: 15000, // Refresh every 15 seconds for live updates
+    retry: 2,
   });
 
-  // Forms setup
-  const createForm = useForm<EnhancedCreateWallets>({
-    resolver: zodResolver(enhancedCreateWalletsSchema),
-    defaultValues: {
-      count: 1,
-      labelPrefix: "Wallet",
-      isBurner: true,
-    },
-  });
+  // Live balance monitoring with staggered Helius API calls
+  const startLiveBalanceMonitoring = useCallback(async (walletsToMonitor: WalletData[]) => {
+    if (walletsToMonitor.length === 0) return;
+    
+    try {
+      const conn = getConnection();
+      
+      // Stagger balance checks to avoid rate limiting
+      walletsToMonitor.forEach(async (wallet, index) => {
+        setTimeout(async () => {
+          try {
+            const balance = await conn.getBalance(new PublicKey(wallet.pubkey));
+            const solBalance = balance / LAMPORTS_PER_SOL;
+            
+            // Check if balance changed significantly
+            if (Math.abs(solBalance - wallet.sol_balance) > 0.000001) {
+              setBalanceUpdates(prev => new Map(prev).set(wallet.pubkey, solBalance));
+              setFlashingWallets(prev => new Set(prev).add(wallet.pubkey));
+              
+              // Flash animation timeout
+              setTimeout(() => {
+                setFlashingWallets(prev => {
+                  const newSet = new Set(prev);
+                  newSet.delete(wallet.pubkey);
+                  return newSet;
+                });
+              }, 2000);
+            }
+          } catch (error) {
+            console.error('Balance check failed:', wallet.pubkey, error);
+          }
+        }, index * 100); // 100ms stagger between requests
+      });
+    } catch (error) {
+      console.error('Balance monitoring setup failed:', error);
+    }
+  }, [getConnection]);
 
-  const importForm = useForm<EnhancedImportWallet>({
-    resolver: zodResolver(enhancedImportWalletSchema),
-    defaultValues: {
-      privateKey: "",
-      label: "",
-      isBurner: false,
-    },
-  });
-
-  const transferForm = useForm<WalletTransfer>({
-    resolver: zodResolver(walletTransferSchema),
-    defaultValues: {
-      fromWallet: "",
-      recipientAddress: "",
-      amount: 0,
-      priorityFee: 0.0001,
-    },
-  });
-
-  const multisendForm = useForm<WalletMultisend>({
-    resolver: zodResolver(walletMultisendSchema),
-    defaultValues: {
-      fromWallet: "",
-      recipients: [{ address: "", amount: 0 }],
-      priorityFee: 0.0001,
-    },
-  });
-
-  const quickBuyForm = useForm<QuickBuyData>({
-    resolver: zodResolver(quickBuySchema),
-    defaultValues: {
-      fromWallet: "",
-      tokenMint: "",
-      amountType: "fixed",
-      fixedAmount: 0.1,
-      minAmount: 0.05,
-      maxAmount: 0.2,
-      slippage: 1,
-    },
-  });
-
-  const consolidateForm = useForm<ConsolidateData>({
-    resolver: zodResolver(consolidateSchema),
-    defaultValues: {
-      targetWallet: "",
-      minBalance: 0.001,
-      keepAmount: 0.001,
-    },
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control: multisendForm.control,
-    name: "recipients",
-  });
-
-  // Mutations for wallet operations
+  // Create wallets with live Keypair generation + Supabase insert
   const createWalletsMutation = useMutation({
-    mutationFn: async (data: EnhancedCreateWallets) => {
-      const response = await fetch('/api/wallets/create', {
+    mutationFn: async (data: CreateWalletForm) => {
+      if (!user?.walletAddress) throw new Error('User not authenticated');
+      
+      const response = await fetch('/api/wallets/live-create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          network: networkMode,
+        body: JSON.stringify({ 
+          count: data.count,
+          isBurner: data.isBurner,
+          userWallet: user.walletAddress,
+          network: isDevnet ? 'devnet' : 'mainnet-beta'
         }),
       });
-      if (!response.ok) throw new Error('Failed to create wallets');
-      return response.json();
-    },
-    onSuccess: (data) => {
-      toast.success(`Successfully created ${data.wallets?.length || data.count} wallet(s)!`);
       
-      if (data.privateKeys) {
-        // Secure private key handling - show once and download
-        const privateKeysText = data.privateKeys
-          .map((pk: string, i: number) => `${data.labels[i]}: ${pk}`)
-          .join('\n');
-        
-        // Create encrypted backup
-        const encrypted = CryptoJS.AES.encrypt(privateKeysText, encryptionKey).toString();
-        const blob = new Blob([`ENCRYPTED_BACKUP\n${encrypted}\n\nKEY: ${encryptionKey}`], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `caesar-wallets-${Date.now()}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        toast("🔑 Private keys downloaded. SAVE SECURELY - they won't be shown again!", {
-          duration: 15000,
-          style: { background: '#dc2626', color: '#ffffff' },
-        });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create wallets');
       }
-
-      queryClient.invalidateQueries({ queryKey: ['/api/wallets'] });
-      createForm.reset();
+      
+      const result = await response.json();
+      
+      // Show private keys once for security
+      if (result.privateKeys && showPrivateKeys) {
+        toast.success(
+          `${data.count} wallet(s) created! Private keys logged to console (save them now).`,
+          { duration: 15000 }
+        );
+        console.log('🔐 PRIVATE KEYS (Save these immediately!):', result.privateKeys);
+      } else {
+        toast.success(`${data.count} wallet(s) created successfully`);
+      }
+      
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['live-wallets'] });
+      refetch();
     },
     onError: (error: any) => {
-      toast.error(`Failed to create wallets: ${error.message}`);
+      toast.error(error.message || 'Failed to create wallets');
     },
   });
 
+  // Import wallet with live validation + Supabase insert
   const importWalletMutation = useMutation({
-    mutationFn: async (data: EnhancedImportWallet) => {
-      const response = await fetch('/api/wallets/import', {
+    mutationFn: async (data: ImportWalletForm) => {
+      if (!user?.walletAddress) throw new Error('User not authenticated');
+      
+      const response = await fetch('/api/wallets/live-import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...data,
-          network: networkMode,
+          privateKey: data.privateKey,
+          label: data.label,
+          isBurner: data.isBurner,
+          userWallet: user.walletAddress,
+          network: isDevnet ? 'devnet' : 'mainnet-beta'
         }),
       });
-      if (!response.ok) throw new Error('Failed to import wallet');
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to import wallet');
+      }
+      
       return response.json();
     },
     onSuccess: () => {
-      toast.success("Wallet imported successfully!");
-      queryClient.invalidateQueries({ queryKey: ['/api/wallets'] });
-      importForm.reset();
-      // Clear private key from memory
-      setTimeout(() => {
-        importForm.setValue('privateKey', '');
-      }, 100);
+      queryClient.invalidateQueries({ queryKey: ['live-wallets'] });
+      toast.success('Wallet imported and verified');
+      refetch();
     },
     onError: (error: any) => {
-      toast.error(`Failed to import wallet: ${error.message}`);
+      toast.error(error.message || 'Failed to import wallet');
     },
   });
 
+  // Live transfer with real transaction building
   const transferMutation = useMutation({
-    mutationFn: async (data: WalletTransfer) => {
-      const response = await fetch('/api/wallets/transfer', {
+    mutationFn: async (data: TransferForm) => {
+      if (!user?.walletAddress) throw new Error('User not authenticated');
+      
+      const response = await fetch('/api/wallets/live-transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, network: networkMode }),
+        body: JSON.stringify({
+          fromWallet: data.fromWallet,
+          toAddress: data.toAddress,
+          amount: data.amount,
+          tokenMint: data.tokenMint,
+          userWallet: user.walletAddress,
+          network: isDevnet ? 'devnet' : 'mainnet-beta'
+        }),
       });
-      if (!response.ok) throw new Error('Transfer failed');
-      return response.json();
-    },
-    onSuccess: (data) => {
-      toast.success("Transfer completed successfully!");
-      if (data.txHash) {
-        const explorerUrl = networkMode === 'mainnet' 
-          ? `https://solscan.io/tx/${data.txHash}`
-          : `https://solscan.io/tx/${data.txHash}?cluster=devnet`;
-        
-        toast((t) => (
-          <div>
-            <span>View on Solscan</span>
-            <button 
-              onClick={() => window.open(explorerUrl, '_blank')}
-              className="ml-2 text-blue-400 underline"
-            >
-              {data.txHash.slice(0, 8)}...
-            </button>
-          </div>
-        ), { duration: 10000 });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Transfer failed');
       }
-      queryClient.invalidateQueries({ queryKey: ['/api/wallets'] });
-      transferForm.reset();
-    },
-    onError: (error: any) => {
-      toast.error(`Transfer failed: ${error.message}`);
-    },
-  });
-
-  const multisendMutation = useMutation({
-    mutationFn: async (data: WalletMultisend) => {
-      const response = await fetch('/api/wallets/multisend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, network: networkMode }),
-      });
-      if (!response.ok) throw new Error('Multisend failed');
+      
       return response.json();
     },
-    onSuccess: (data) => {
-      toast.success(`Multisend completed! ${data.successful}/${data.total} transactions successful`);
-      queryClient.invalidateQueries({ queryKey: ['/api/wallets'] });
-      multisendForm.reset();
+    onSuccess: (result) => {
+      toast.success(
+        <div>
+          Transfer successful! 
+          <a 
+            href={`https://solscan.io/tx/${result.signature}${isDevnet ? '?cluster=devnet' : ''}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:underline ml-1"
+          >
+            View on Solscan
+          </a>
+        </div>
+      );
+      queryClient.invalidateQueries({ queryKey: ['live-wallets'] });
+      refetch();
     },
     onError: (error: any) => {
-      toast.error(`Multisend failed: ${error.message}`);
+      toast.error(error.message || 'Transfer failed');
     },
   });
 
-  const quickBuyMutation = useMutation({
-    mutationFn: async (data: QuickBuyData) => {
-      const response = await fetch('/api/wallets/quick-buy', {
-        method: 'POST',
+  // Delete wallet with Supabase delete
+  const deleteWalletMutation = useMutation({
+    mutationFn: async (pubkey: string) => {
+      if (!user?.walletAddress) throw new Error('User not authenticated');
+      
+      const response = await fetch('/api/wallets/live-delete', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, network: networkMode }),
+        body: JSON.stringify({ 
+          pubkey,
+          userWallet: user.walletAddress 
+        }),
       });
-      if (!response.ok) throw new Error('Quick buy failed');
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete wallet');
+      }
+      
       return response.json();
     },
-    onSuccess: (data) => {
-      toast.success(`Quick buy completed! ${data.txHash.slice(0, 8)}...`);
-      setIsQuickBuyOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/wallets'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['live-wallets'] });
+      toast.success('Wallet deleted from database');
+      refetch();
     },
     onError: (error: any) => {
-      toast.error(`Quick buy failed: ${error.message}`);
+      toast.error(error.message || 'Failed to delete wallet');
     },
   });
 
-  const consolidateMutation = useMutation({
-    mutationFn: async (data: ConsolidateData) => {
-      const response = await fetch('/api/wallets/consolidate', {
+  // Airdrop SOL (devnet only)
+  const airdropMutation = useMutation({
+    mutationFn: async (pubkey: string) => {
+      if (!isDevnet) throw new Error('Airdrop only available on devnet');
+      
+      const response = await fetch('/api/wallets/live-airdrop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, network: networkMode }),
+        body: JSON.stringify({ 
+          pubkey,
+          amount: 2,
+          network: 'devnet'
+        }),
       });
-      if (!response.ok) throw new Error('Consolidation failed');
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Airdrop failed');
+      }
+      
       return response.json();
     },
-    onSuccess: (data) => {
-      toast.success(`Consolidated ${data.amount} SOL from ${data.walletCount} wallets`);
-      setIsConsolidateOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/wallets'] });
+    onSuccess: (result) => {
+      toast.success(`Airdropped ${result.amount} SOL successfully!`);
+      refetch();
     },
     onError: (error: any) => {
-      toast.error(`Consolidation failed: ${error.message}`);
+      toast.error(error.message || 'Airdrop failed');
     },
   });
 
-  // Helper functions
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard!");
+  // Filter and sort wallets
+  const filteredWallets = wallets
+    .filter((wallet: WalletData) => 
+      wallet.pubkey.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      wallet.label.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a: WalletData, b: WalletData) => {
+      switch (sortBy) {
+        case 'label': return a.label.localeCompare(b.label);
+        case 'sol_balance': 
+          const balanceA = balanceUpdates.get(a.pubkey) ?? a.sol_balance;
+          const balanceB = balanceUpdates.get(b.pubkey) ?? b.sol_balance;
+          return balanceB - balanceA;
+        default: return a.pubkey.localeCompare(b.pubkey);
+      }
+    });
+
+  const truncateAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const exportWallets = () => {
-    const csvData = [
-      ['Public Key', 'Label', 'Is Burner', 'Balance', 'Created At'],
-      ...filteredWallets.map((wallet: EnhancedWallet) => [
-        wallet.pubkey,
-        wallet.label,
-        wallet.isBurner ? 'Yes' : 'No',
-        wallet.balance?.toString() || '0',
-        wallet.createdAt ? new Date(wallet.createdAt).toLocaleDateString() : '',
-      ])
-    ];
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard');
+  };
 
-    const csv = csvData.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+  // Export wallets with live data
+  const exportWallets = () => {
+    const timestamp = new Date().toISOString().split('T')[0];
+    const networkTag = isDevnet ? 'devnet' : 'mainnet';
+    
+    const csvContent = [
+      'Public Key,Label,SOL Balance,Token Count,Is Burner,Created At,Updated At',
+      ...filteredWallets.map((wallet: WalletData) => {
+        const balance = balanceUpdates.get(wallet.pubkey) ?? wallet.sol_balance;
+        return `${wallet.pubkey},${wallet.label},${balance.toFixed(9)},${wallet.token_balances?.length || 0},${wallet.is_burner},${wallet.created_at},${wallet.updated_at}`;
+      })
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `caesar-wallets-${Date.now()}.csv`;
+    a.download = `caesarbot-wallets-${networkTag}-${timestamp}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
     toast.success(`Exported ${filteredWallets.length} wallets to CSV`);
   };
 
-  // Wallet filtering and sorting
-  const filteredWallets = wallets
-    .filter((wallet: EnhancedWallet) => {
-      const matchesSearch = wallet.pubkey.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          wallet.label.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesFilter = filterBurner === 'all' || 
-                          (filterBurner === 'burner' && wallet.isBurner) ||
-                          (filterBurner === 'regular' && !wallet.isBurner);
-      return matchesSearch && matchesFilter;
-    })
-    .sort((a: EnhancedWallet, b: EnhancedWallet) => {
-      let aVal: any, bVal: any;
-      switch (sortBy) {
-        case 'balance':
-          aVal = a.balance || 0;
-          bVal = b.balance || 0;
-          break;
-        case 'created':
-          aVal = new Date(a.createdAt || 0);
-          bVal = new Date(b.createdAt || 0);
-          break;
-        default:
-          aVal = a.label.toLowerCase();
-          bVal = b.label.toLowerCase();
-      }
-      
-      if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : -1;
-      } else {
-        return aVal < bVal ? 1 : -1;
-      }
-    });
-
-  // Wallet row component for virtualization
-  const WalletRow = ({ index, style }: { index: number; style: any }) => {
-    const wallet = filteredWallets[index] as EnhancedWallet;
+  // Wallet Row Component with live updates
+  const WalletRow = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const wallet = filteredWallets[index] as WalletData;
+    const currentBalance = balanceUpdates.get(wallet.pubkey) ?? wallet.sol_balance;
+    const isFlashing = flashingWallets.has(wallet.pubkey);
+    const balanceChanged = balanceUpdates.has(wallet.pubkey);
     
     return (
-      <div style={style} className="px-4 py-2 border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4 flex-1">
-            <Checkbox
-              checked={selectedWallets.includes(wallet.pubkey)}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  setSelectedWallets([...selectedWallets, wallet.pubkey]);
-                } else {
-                  setSelectedWallets(selectedWallets.filter(id => id !== wallet.pubkey));
-                }
-              }}
-            />
-            
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="font-mono text-sm text-caesar-gold">
-                  {wallet.pubkey.slice(0, 8)}...{wallet.pubkey.slice(-8)}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard(wallet.pubkey)}
-                  className="h-6 w-6 p-0"
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="text-sm text-gray-400">{wallet.label}</div>
-            </div>
-
-            <div className="text-right">
-              <div className={`font-medium ${wallet.flashColor === 'green' ? 'text-green-400' : wallet.flashColor === 'red' ? 'text-red-400' : ''}`}>
-                {wallet.balance?.toFixed(4) || '0.0000'} SOL
-              </div>
-              {wallet.isBurner && (
-                <Badge variant="secondary" className="text-xs">
-                  Burner
-                </Badge>
-              )}
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button size="sm" variant="ghost" onClick={() => {}}>
-                <Send className="h-4 w-4" />
+      <motion.div 
+        style={style}
+        className={`flex items-center p-3 border-b border-gray-800 hover:bg-gray-900/50 transition-all duration-200 ${
+          isFlashing ? 'bg-green-900/20 border-green-600/30' : ''
+        }`}
+        animate={isFlashing ? { 
+          backgroundColor: ['rgba(34, 197, 94, 0.2)', 'transparent'],
+          borderColor: ['rgba(34, 197, 94, 0.3)', 'rgba(75, 85, 99, 1)']
+        } : {}}
+        transition={{ duration: 1.5 }}
+      >
+        <div className="flex-1 grid grid-cols-7 gap-3 items-center text-sm">
+          {/* Public Key */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => copyToClipboard(wallet.pubkey)}
+              className="font-mono text-yellow-400 hover:text-yellow-300 transition-colors"
+              title={wallet.pubkey}
+              data-testid={`wallet-pubkey-${index}`}
+            >
+              {truncateAddress(wallet.pubkey)}
+            </button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => copyToClipboard(wallet.pubkey)}
+              className="h-6 w-6 p-0"
+              data-testid={`copy-pubkey-${index}`}
+            >
+              <Copy className="w-3 h-3" />
+            </Button>
+          </div>
+          
+          {/* Label */}
+          <div className="text-gray-200 font-medium" data-testid={`wallet-label-${index}`}>
+            {wallet.label}
+          </div>
+          
+          {/* SOL Balance with live updates */}
+          <div 
+            className={`font-mono transition-colors ${
+              balanceChanged ? 'text-green-400' : 'text-white'
+            }`} 
+            data-testid={`wallet-balance-${index}`}
+          >
+            {currentBalance.toFixed(6)} SOL
+          </div>
+          
+          {/* Token Count */}
+          <div className="text-gray-400" data-testid={`wallet-tokens-${index}`}>
+            {wallet.token_balances?.length || 0} tokens
+          </div>
+          
+          {/* Wallet Type */}
+          <div>
+            <Badge 
+              variant={wallet.is_burner ? "destructive" : "secondary"}
+              className="text-xs"
+              data-testid={`wallet-type-${index}`}
+            >
+              {wallet.is_burner ? "Burner" : "Normal"}
+            </Badge>
+          </div>
+          
+          {/* Network Badge */}
+          <div>
+            <Badge 
+              variant="outline" 
+              className={`text-xs ${isDevnet ? 'border-yellow-400 text-yellow-400' : 'border-red-400 text-red-400'}`}
+            >
+              {isDevnet ? "DEVNET" : "MAINNET"}
+            </Badge>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex space-x-1">
+            {isDevnet && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => airdropMutation.mutate(wallet.pubkey)}
+                disabled={airdropMutation.isPending}
+                title="Airdrop 2 SOL (Devnet only)"
+                className="h-7 w-7 p-0 text-green-400 hover:text-green-300"
+                data-testid={`airdrop-${index}`}
+              >
+                <DollarSign className="w-3 h-3" />
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => {}}>
-                <Zap className="h-4 w-4" />
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => {}}>
-                <Trash2 className="h-4 w-4 text-red-400" />
-              </Button>
-            </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => deleteWalletMutation.mutate(wallet.pubkey)}
+              disabled={deleteWalletMutation.isPending}
+              title="Delete wallet"
+              className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+              data-testid={`delete-wallet-${index}`}
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   };
 
-  return (
-    <div className="p-8 bg-black text-caesar-gold space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Wallet Operations Console</h1>
-          <p className="text-gray-400">
-            Professional-grade multi-wallet management for up to 100 Solana wallets
+  if (!user?.walletAddress) {
+    return (
+      <div className="p-8 bg-black text-yellow-400 min-h-screen">
+        <div className="max-w-2xl mx-auto text-center">
+          <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-yellow-400" />
+          <h2 className="text-2xl font-bold mb-4">Wallet Connection Required</h2>
+          <p className="text-gray-300 mb-6">
+            Connect your Solana wallet to access the live Wallet Operations console with real-time balance tracking.
           </p>
         </div>
-        
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <Label>Network:</Label>
-            <Select value={networkMode} onValueChange={(value: 'devnet' | 'mainnet') => setNetworkMode(value)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="devnet">Devnet</SelectItem>
-                <SelectItem value="mainnet">Mainnet</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <Button onClick={exportWallets} variant="outline" className="space-x-2">
-            <Download className="h-4 w-4" />
-            <span>Export CSV</span>
-          </Button>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-8 bg-black text-yellow-400 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-yellow-400" />
+          <p className="text-gray-300">Loading live wallet data...</p>
         </div>
       </div>
+    );
+  }
 
-      {/* Main Content */}
-      <Tabs defaultValue="wallets" className="space-y-6">
-        <TabsList className="bg-caesar-dark border border-gray-800">
-          <TabsTrigger value="wallets">Wallets ({wallets.length})</TabsTrigger>
-          <TabsTrigger value="create">Create</TabsTrigger>
-          <TabsTrigger value="import">Import</TabsTrigger>
-          <TabsTrigger value="transfer">Transfer</TabsTrigger>
-          <TabsTrigger value="multisend">Multisend</TabsTrigger>
-        </TabsList>
-
-        {/* Wallets Tab */}
-        <TabsContent value="wallets">
-          <Card className="bg-caesar-dark border-gray-800">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Managed Wallets</CardTitle>
-                <div className="flex items-center space-x-4">
-                  {/* Search and filters */}
-                  <div className="flex items-center space-x-2">
-                    <Search className="h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search wallets..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-64"
-                    />
-                  </div>
-                  
-                  <Select value={sortBy} onValueChange={(value: 'label' | 'balance' | 'created') => setSortBy(value)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="balance">Balance</SelectItem>
-                      <SelectItem value="label">Label</SelectItem>
-                      <SelectItem value="created">Created</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select value={filterBurner} onValueChange={(value: 'all' | 'burner' | 'regular') => setFilterBurner(value)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="burner">Burners</SelectItem>
-                      <SelectItem value="regular">Regular</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Button onClick={() => refetchWallets()} variant="outline" size="sm">
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {walletsLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Bulk actions */}
-                  {selectedWallets.length > 0 && (
-                    <div className="flex items-center space-x-4 p-4 bg-gray-800 rounded-lg">
-                      <span className="text-sm">
-                        {selectedWallets.length} wallet{selectedWallets.length !== 1 ? 's' : ''} selected
-                      </span>
-                      <Button size="sm" variant="outline">Fund Selected</Button>
-                      <Button size="sm" variant="outline">Consolidate</Button>
-                      <Button size="sm" variant="outline" className="text-red-400">Delete Selected</Button>
-                    </div>
-                  )}
-
-                  {/* Virtualized wallet list */}
-                  {filteredWallets.length > 0 ? (
-                    <List
-                      height={600}
-                      itemCount={filteredWallets.length}
-                      itemSize={80}
-                      className="border border-gray-800 rounded-lg"
-                    >
-                      {WalletRow}
-                    </List>
-                  ) : (
-                    <div className="text-center text-gray-500 py-12">
-                      <Wallet className="h-12 w-12 mx-auto mb-4" />
-                      <p>No wallets found</p>
-                      <p className="text-sm">Create or import wallets to get started</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Create Wallets Tab */}
-        <TabsContent value="create">
-          <Card className="bg-caesar-dark border-gray-800">
-            <CardHeader>
-              <CardTitle>Create New Wallets</CardTitle>
-              <p className="text-gray-400">Generate up to 100 wallets at once</p>
-            </CardHeader>
-            <CardContent>
-              <Form {...createForm}>
-                <form onSubmit={createForm.handleSubmit((data) => createWalletsMutation.mutate(data))} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <FormField
-                      control={createForm.control}
-                      name="count"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Number of Wallets</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="100"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormDescription>1-100 wallets</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="labelPrefix"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Label Prefix</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormDescription>e.g., "Trading", "Sniper"</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="isBurner"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel>Mark as Burner</FormLabel>
-                            <FormDescription>
-                              Recommended for privacy
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <Alert>
-                    <Shield className="h-4 w-4" />
-                    <AlertDescription>
-                      Private keys will be shown once and downloaded automatically. Save them securely.
-                    </AlertDescription>
-                  </Alert>
-
-                  <Button 
-                    type="submit" 
-                    disabled={createWalletsMutation.isPending}
-                    className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold/90"
-                  >
-                    {createWalletsMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Creating Wallets...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Wallets
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Import Wallet Tab */}
-        <TabsContent value="import">
-          <Card className="bg-caesar-dark border-gray-800">
-            <CardHeader>
-              <CardTitle>Import Existing Wallet</CardTitle>
-              <p className="text-gray-400">Import wallet using private key</p>
-            </CardHeader>
-            <CardContent>
-              <Form {...importForm}>
-                <form onSubmit={importForm.handleSubmit((data) => importWalletMutation.mutate(data))} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={importForm.control}
-                      name="privateKey"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Private Key</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              placeholder="Base64 private key..."
-                              className="font-mono"
-                            />
-                          </FormControl>
-                          <FormDescription>Base64 encoded private key</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="space-y-6">
-                      <FormField
-                        control={importForm.control}
-                        name="label"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Wallet Label</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormDescription>Descriptive name</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={importForm.control}
-                        name="isBurner"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                            <div className="space-y-0.5">
-                              <FormLabel>Mark as Burner</FormLabel>
-                              <FormDescription>
-                                For privacy operations
-                              </FormDescription>
-                            </div>
-                            <FormControl>
-                              <Switch
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      Private key will be cleared from memory after import. Ensure you have a backup.
-                    </AlertDescription>
-                  </Alert>
-
-                  <Button 
-                    type="submit" 
-                    disabled={importWalletMutation.isPending}
-                    className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold/90"
-                  >
-                    {importWalletMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Importing...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Import Wallet
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Transfer Tab */}
-        <TabsContent value="transfer">
-          <Card className="bg-caesar-dark border-gray-800">
-            <CardHeader>
-              <CardTitle>Single Transfer</CardTitle>
-              <p className="text-gray-400">Send SOL or SPL tokens from one wallet</p>
-            </CardHeader>
-            <CardContent>
-              <Form {...transferForm}>
-                <form onSubmit={transferForm.handleSubmit((data) => transferMutation.mutate(data))} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={transferForm.control}
-                      name="fromWallet"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>From Wallet</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select wallet" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {wallets.map((wallet: EnhancedWallet) => (
-                                <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
-                                  {wallet.label} ({wallet.balance?.toFixed(4)} SOL)
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={transferForm.control}
-                      name="recipientAddress"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Recipient Address</FormLabel>
-                          <FormControl>
-                            <Input {...field} className="font-mono" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={transferForm.control}
-                      name="amount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Amount</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.000001"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={transferForm.control}
-                      name="priorityFee"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Priority Fee</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.000001"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormDescription>SOL for priority fee</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    disabled={transferMutation.isPending}
-                    className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold/90"
-                  >
-                    {transferMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Transferring...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Send Transfer
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Multisend Tab */}
-        <TabsContent value="multisend">
-          <Card className="bg-caesar-dark border-gray-800">
-            <CardHeader>
-              <CardTitle>Multi-recipient Transfer</CardTitle>
-              <p className="text-gray-400">Send to multiple addresses at once (max 50 recipients)</p>
-            </CardHeader>
-            <CardContent>
-              <Form {...multisendForm}>
-                <form onSubmit={multisendForm.handleSubmit((data) => multisendMutation.mutate(data))} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={multisendForm.control}
-                      name="fromWallet"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>From Wallet</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select wallet" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {wallets.map((wallet: EnhancedWallet) => (
-                                <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
-                                  {wallet.label} ({wallet.balance?.toFixed(4)} SOL)
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={multisendForm.control}
-                      name="priorityFee"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Priority Fee</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.000001"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Recipients */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label>Recipients ({fields.length}/50)</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => append({ address: "", amount: 0 })}
-                        disabled={fields.length >= 50}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Recipient
-                      </Button>
-                    </div>
-
-                    {fields.map((field, index) => (
-                      <div key={field.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <FormField
-                          control={multisendForm.control}
-                          name={`recipients.${index}.address`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input {...field} placeholder="Recipient address" className="font-mono" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={multisendForm.control}
-                          name={`recipients.${index}.amount`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  step="0.000001"
-                                  placeholder="Amount"
-                                  {...field}
-                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => remove(index)}
-                          disabled={fields.length <= 1}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    disabled={multisendMutation.isPending}
-                    className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold/90"
-                  >
-                    {multisendMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing Multisend...
-                      </>
-                    ) : (
-                      <>
-                        <Users className="h-4 w-4 mr-2" />
-                        Send to {fields.length} Recipients
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Advanced Operations Sheet */}
-      <Sheet open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
-        <SheetTrigger asChild>
-          <Button variant="outline" className="fixed bottom-8 right-8 rounded-full w-16 h-16">
-            <Settings className="h-6 w-6" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="right" className="w-[600px] bg-caesar-dark border-gray-800">
-          <SheetHeader>
-            <SheetTitle>Advanced Operations</SheetTitle>
-            <SheetDescription>
-              Professional wallet management tools
-            </SheetDescription>
-          </SheetHeader>
+  return (
+    <div className="p-8 bg-black text-yellow-400 min-h-screen" data-testid="wallet-ops-live">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-yellow-400" data-testid="page-title">
+              Wallet Operations Console
+            </h1>
+            <p className="text-gray-300 mt-1">
+              Real-time Solana wallet management with live balance tracking • {filteredWallets.length}/100 wallets
+            </p>
+          </div>
           
-          <div className="mt-8 space-y-4">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => setIsQuickBuyOpen(true)}
-            >
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Quick Buy Token
+          <div className="flex items-center space-x-4">
+            {/* Network Toggle */}
+            <div className="flex items-center space-x-2 bg-gray-900 px-3 py-2 rounded-lg">
+              <Label htmlFor="network-toggle" className={`text-sm ${isDevnet ? 'text-yellow-400' : 'text-red-400'}`}>
+                {isDevnet ? 'DEVNET' : 'MAINNET'}
+              </Label>
+              <Switch
+                id="network-toggle"
+                checked={isDevnet}
+                onCheckedChange={setIsDevnet}
+                data-testid="network-toggle"
+              />
+            </div>
+            
+            {/* Private Key Visibility Toggle */}
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPrivateKeys(!showPrivateKeys)}
+                className="text-gray-400"
+                data-testid="toggle-private-keys"
+              >
+                {showPrivateKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+            
+            <Button onClick={exportWallets} variant="outline" className="border-yellow-400 text-yellow-400" data-testid="export-wallets">
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
             </Button>
             
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => setIsConsolidateOpen(true)}
-            >
-              <ArrowRightLeft className="h-4 w-4 mr-2" />
-              Consolidate Wallets
-            </Button>
-            
-            <Button variant="outline" className="w-full justify-start">
-              <QrCode className="h-4 w-4 mr-2" />
-              Generate QR Codes
-            </Button>
-            
-            <Button variant="outline" className="w-full justify-start">
-              <Shuffle className="h-4 w-4 mr-2" />
-              Mixer Operations
+            <Button onClick={() => refetch()} variant="outline" className="border-yellow-400 text-yellow-400" data-testid="refresh-wallets">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
             </Button>
           </div>
-        </SheetContent>
-      </Sheet>
+        </div>
 
-      {/* Quick Buy Modal */}
-      <Dialog open={isQuickBuyOpen} onOpenChange={setIsQuickBuyOpen}>
-        <DialogContent className="bg-caesar-dark border-gray-800">
-          <DialogHeader>
-            <DialogTitle>Quick Buy Token</DialogTitle>
-            <DialogDescription>
-              Execute Jupiter swap with selected wallet
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...quickBuyForm}>
-            <form onSubmit={quickBuyForm.handleSubmit((data) => quickBuyMutation.mutate(data))} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={quickBuyForm.control}
-                  name="fromWallet"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>From Wallet</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select wallet" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {wallets.map((wallet: EnhancedWallet) => (
-                            <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
-                              {wallet.label} ({wallet.balance?.toFixed(4)} SOL)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={quickBuyForm.control}
-                  name="tokenMint"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Token Address</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="font-mono" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={quickBuyForm.control}
-                  name="amountType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Amount Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="fixed">Fixed Amount</SelectItem>
-                          <SelectItem value="range">Random Range</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={quickBuyForm.control}
-                  name="slippage"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Slippage (%)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+        {/* Security Warning */}
+        <Card className="border-yellow-600/50 bg-yellow-900/10">
+          <CardContent className="pt-6">
+            <div className="flex items-start space-x-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-semibold text-yellow-400 mb-1">Security & Privacy Notice</p>
+                <p className="text-gray-300">
+                  Private keys are never stored and shown only once during creation. Use burner wallets for enhanced privacy. 
+                  All balances are fetched live from Helius API. Consider VPN usage for additional anonymity.
+                </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              <Button 
-                type="submit" 
-                disabled={quickBuyMutation.isPending}
-                className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold/90"
-              >
-                {quickBuyMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Executing Buy...
-                  </>
-                ) : (
-                  <>
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Execute Buy
-                  </>
-                )}
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Consolidate Modal */}
-      <Dialog open={isConsolidateOpen} onOpenChange={setIsConsolidateOpen}>
-        <DialogContent className="bg-caesar-dark border-gray-800">
-          <DialogHeader>
-            <DialogTitle>Consolidate SOL</DialogTitle>
-            <DialogDescription>
-              Combine SOL from multiple wallets into one target wallet
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...consolidateForm}>
-            <form onSubmit={consolidateForm.handleSubmit((data) => consolidateMutation.mutate(data))} className="space-y-6">
-              <FormField
-                control={consolidateForm.control}
-                name="targetWallet"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Target Wallet</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select target wallet" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {wallets.map((wallet: EnhancedWallet) => (
-                          <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
-                            {wallet.label} ({wallet.balance?.toFixed(4)} SOL)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+        {/* Operations Panel */}
+        <Card className="bg-gray-900 border-gray-700">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-yellow-400">
+              <Settings className="w-5 h-5" />
+              <span>Live Wallet Operations</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              <CreateWalletDialog 
+                onSubmit={(data) => createWalletsMutation.mutate(data)}
+                isLoading={createWalletsMutation.isPending}
+                showPrivateKeys={showPrivateKeys}
               />
+              
+              <ImportWalletDialog
+                onSubmit={(data) => importWalletMutation.mutate(data)}
+                isLoading={importWalletMutation.isPending}
+              />
+              
+              <TransferDialog
+                wallets={wallets}
+                onSubmit={(data) => transferMutation.mutate(data)}
+                isLoading={transferMutation.isPending}
+                isDevnet={isDevnet}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={consolidateForm.control}
-                  name="minBalance"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Minimum Balance</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.001"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormDescription>Only consolidate wallets with more than this amount</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={consolidateForm.control}
-                  name="keepAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Keep Amount</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.001"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormDescription>SOL to leave in each wallet for rent</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+        {/* Search and Filters */}
+        <Card className="bg-gray-900 border-gray-700">
+          <CardContent className="pt-6">
+            <div className="flex space-x-4">
+              <div className="flex-1">
+                <Input
+                  placeholder="Search by public key or label..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
+                  data-testid="wallet-search"
                 />
               </div>
-
-              <Button 
-                type="submit" 
-                disabled={consolidateMutation.isPending}
-                className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold/90"
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white"
+                data-testid="sort-select"
               >
-                {consolidateMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Consolidating...
-                  </>
-                ) : (
-                  <>
-                    <ArrowRightLeft className="h-4 w-4 mr-2" />
-                    Start Consolidation
-                  </>
-                )}
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+                <option value="pubkey">Sort by Public Key</option>
+                <option value="label">Sort by Label</option>
+                <option value="sol_balance">Sort by Balance</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Live Wallet List */}
+        <Card className="bg-gray-900 border-gray-700">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-yellow-400">
+              <span>Live Wallets ({filteredWallets.length})</span>
+              <div className="flex items-center space-x-4 text-sm text-gray-400">
+                <span>
+                  Total Balance: {filteredWallets.reduce((sum: number, w: WalletData) => 
+                    sum + (balanceUpdates.get(w.pubkey) ?? w.sol_balance), 0
+                  ).toFixed(6)} SOL
+                </span>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span>Live Updates</span>
+                </div>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {filteredWallets.length > 0 ? (
+              <div>
+                {/* Header Row */}
+                <div className="flex items-center p-3 border-b border-gray-700 bg-gray-800/30 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  <div className="flex-1 grid grid-cols-7 gap-3">
+                    <div>Public Key</div>
+                    <div>Label</div>
+                    <div>SOL Balance</div>
+                    <div>Tokens</div>
+                    <div>Type</div>
+                    <div>Network</div>
+                    <div>Actions</div>
+                  </div>
+                </div>
+                
+                {/* Virtualized List with Live Updates */}
+                <List
+                  height={500}
+                  itemCount={filteredWallets.length}
+                  itemSize={60}
+                  data-testid="live-wallet-list"
+                >
+                  {WalletRow}
+                </List>
+              </div>
+            ) : (
+              <div className="p-12 text-center">
+                <Wallet className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                <p className="text-gray-400 mb-4">No wallets found</p>
+                <p className="text-sm text-gray-500">
+                  Create or import wallets to start live balance tracking
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+// Dialog Components with Enhanced Forms
+
+function CreateWalletDialog({ onSubmit, isLoading, showPrivateKeys }: {
+  onSubmit: (data: CreateWalletForm) => void;
+  isLoading: boolean;
+  showPrivateKeys: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<CreateWalletForm>({
+    resolver: zodResolver(createWalletSchema),
+    defaultValues: { count: 1, isBurner: true }
+  });
+
+  const onFormSubmit = (data: CreateWalletForm) => {
+    onSubmit(data);
+    setOpen(false);
+    reset();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="bg-yellow-400 text-black hover:bg-yellow-500 font-medium" data-testid="create-wallets-button">
+          <Plus className="w-4 h-4 mr-2" />
+          Create Wallets
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="bg-gray-900 border-gray-700 text-white">
+        <DialogHeader>
+          <DialogTitle className="text-yellow-400">Create New Wallets</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+          <div>
+            <Label htmlFor="count" className="text-gray-300">Number of Wallets (1-100)</Label>
+            <Input
+              id="count"
+              type="number"
+              min="1"
+              max="100"
+              {...register('count', { valueAsNumber: true })}
+              className="bg-gray-800 border-gray-600 text-white"
+              data-testid="wallet-count-input"
+            />
+            {errors.count && (
+              <p className="text-red-400 text-sm mt-1">{errors.count.message}</p>
+            )}
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="isBurner"
+              {...register('isBurner')}
+              className="rounded"
+              data-testid="burner-checkbox"
+            />
+            <Label htmlFor="isBurner" className="text-gray-300">
+              Mark as burner wallets (recommended for privacy)
+            </Label>
+          </div>
+          
+          {!showPrivateKeys && (
+            <div className="text-sm text-orange-400 bg-orange-900/20 p-3 rounded">
+              <strong>Note:</strong> Private keys will be logged to console only once for security. 
+              Toggle the eye icon to enable private key display.
+            </div>
+          )}
+          
+          <Button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full bg-yellow-400 text-black hover:bg-yellow-500 font-medium"
+            data-testid="submit-create"
+          >
+            {isLoading ? 'Creating Wallets...' : 'Create Wallets'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ImportWalletDialog({ onSubmit, isLoading }: {
+  onSubmit: (data: ImportWalletForm) => void;
+  isLoading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<ImportWalletForm>({
+    resolver: zodResolver(importWalletSchema),
+    defaultValues: { isBurner: true }
+  });
+
+  const onFormSubmit = (data: ImportWalletForm) => {
+    onSubmit(data);
+    setOpen(false);
+    reset();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-black" data-testid="import-wallet-button">
+          <Wallet className="w-4 h-4 mr-2" />
+          Import Wallet
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="bg-gray-900 border-gray-700 text-white">
+        <DialogHeader>
+          <DialogTitle className="text-yellow-400">Import Existing Wallet</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+          <div>
+            <Label htmlFor="privateKey" className="text-gray-300">Private Key (Base64 or Base58)</Label>
+            <Input
+              id="privateKey"
+              type="password"
+              {...register('privateKey')}
+              className="bg-gray-800 border-gray-600 text-white font-mono text-sm"
+              placeholder="Enter your private key..."
+              data-testid="private-key-input"
+            />
+            {errors.privateKey && (
+              <p className="text-red-400 text-sm mt-1">{errors.privateKey.message}</p>
+            )}
+            <p className="text-xs text-gray-400 mt-1">
+              Supports both Base64 and Base58 encoded private keys
+            </p>
+          </div>
+          
+          <div>
+            <Label htmlFor="label" className="text-gray-300">Wallet Label</Label>
+            <Input
+              id="label"
+              {...register('label')}
+              className="bg-gray-800 border-gray-600 text-white"
+              placeholder="Enter a descriptive label..."
+              data-testid="wallet-label-input"
+            />
+            {errors.label && (
+              <p className="text-red-400 text-sm mt-1">{errors.label.message}</p>
+            )}
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="isBurner"
+              {...register('isBurner')}
+              className="rounded"
+              data-testid="import-burner-checkbox"
+            />
+            <Label htmlFor="isBurner" className="text-gray-300">Mark as burner wallet</Label>
+          </div>
+          
+          <Button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full bg-yellow-400 text-black hover:bg-yellow-500 font-medium"
+            data-testid="submit-import"
+          >
+            {isLoading ? 'Importing & Verifying...' : 'Import Wallet'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TransferDialog({ wallets, onSubmit, isLoading, isDevnet }: {
+  wallets: WalletData[];
+  onSubmit: (data: TransferForm) => void;
+  isLoading: boolean;
+  isDevnet: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<TransferForm>({
+    resolver: zodResolver(transferSchema),
+  });
+
+  const selectedWallet = watch('fromWallet');
+  const selectedWalletData = wallets.find(w => w.pubkey === selectedWallet);
+
+  const onFormSubmit = (data: TransferForm) => {
+    onSubmit(data);
+    setOpen(false);
+    reset();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-black" data-testid="transfer-button">
+          <Send className="w-4 h-4 mr-2" />
+          Transfer SOL
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="bg-gray-900 border-gray-700 text-white">
+        <DialogHeader>
+          <DialogTitle className="text-yellow-400">Transfer SOL</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+          <div>
+            <Label htmlFor="fromWallet" className="text-gray-300">From Wallet</Label>
+            <select
+              id="fromWallet"
+              {...register('fromWallet')}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white"
+              data-testid="from-wallet-select"
+            >
+              <option value="">Select source wallet...</option>
+              {wallets
+                .filter(wallet => wallet.sol_balance > 0)
+                .map((wallet) => (
+                <option key={wallet.pubkey} value={wallet.pubkey}>
+                  {wallet.label} • {wallet.sol_balance.toFixed(6)} SOL • {wallet.pubkey.slice(0, 8)}...
+                </option>
+              ))}
+            </select>
+            {errors.fromWallet && (
+              <p className="text-red-400 text-sm mt-1">{errors.fromWallet.message}</p>
+            )}
+            {selectedWalletData && (
+              <p className="text-xs text-gray-400 mt-1">
+                Available: {selectedWalletData.sol_balance.toFixed(9)} SOL
+              </p>
+            )}
+          </div>
+          
+          <div>
+            <Label htmlFor="toAddress" className="text-gray-300">Recipient Address</Label>
+            <Input
+              id="toAddress"
+              {...register('toAddress')}
+              className="bg-gray-800 border-gray-600 text-white font-mono text-sm"
+              placeholder="Enter recipient's public key..."
+              data-testid="to-address-input"
+            />
+            {errors.toAddress && (
+              <p className="text-red-400 text-sm mt-1">{errors.toAddress.message}</p>
+            )}
+          </div>
+          
+          <div>
+            <Label htmlFor="amount" className="text-gray-300">Amount (SOL)</Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.000000001"
+              min="0.000000001"
+              {...register('amount', { valueAsNumber: true })}
+              className="bg-gray-800 border-gray-600 text-white font-mono"
+              placeholder="0.001"
+              data-testid="transfer-amount-input"
+            />
+            {errors.amount && (
+              <p className="text-red-400 text-sm mt-1">{errors.amount.message}</p>
+            )}
+            <p className="text-xs text-gray-400 mt-1">
+              Network: {isDevnet ? 'Devnet' : 'Mainnet'} • Transaction fees will be deducted
+            </p>
+          </div>
+          
+          <div>
+            <Label htmlFor="tokenMint" className="text-gray-300">Token Mint (Optional)</Label>
+            <Input
+              id="tokenMint"
+              {...register('tokenMint')}
+              className="bg-gray-800 border-gray-600 text-white font-mono text-sm"
+              placeholder="Leave empty for SOL transfers"
+              data-testid="token-mint-input"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              For token transfers, enter the mint address
+            </p>
+          </div>
+          
+          <Button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full bg-yellow-400 text-black hover:bg-yellow-500 font-medium"
+            data-testid="submit-transfer"
+          >
+            {isLoading ? 'Processing Transfer...' : 'Transfer SOL'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
