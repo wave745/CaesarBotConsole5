@@ -13,6 +13,7 @@ import { Rewards } from "@/pages/Rewards";
 import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 import { WalletTest } from "@/pages/WalletTest";
+import { WalletOpsLive } from "@/pages/WalletOpsLive";
 import { Toaster as HotToaster } from "react-hot-toast";
 import { WalletProvider } from "@/providers/WalletProvider";
 import { useAppStore } from "@/store/useAppStore";
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/ai-trading" component={Dashboard} />
         <Route path="/sniper" component={Sniper} />
         <Route path="/wallet-ops" component={WalletOps} />
+        <Route path="/wallet-ops-live" component={WalletOpsLive} />
         <Route path="/scanner" component={Scanner} />
         <Route path="/rewards" component={Rewards} />
         <Route path="/tools" component={Dashboard} />
