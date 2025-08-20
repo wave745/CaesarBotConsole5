@@ -50,7 +50,7 @@ export function Sniper() {
       addSnipe({
         id: Date.now().toString(),
         tokenId: "mock-token-" + Date.now(),
-        amount: snipeAmount,
+        amount: parseFloat(snipeAmount),
         status: 'pending',
         timestamp: new Date(),
       });
