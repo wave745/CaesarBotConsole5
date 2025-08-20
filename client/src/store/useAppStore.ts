@@ -144,32 +144,7 @@ export const useAppStore = create<AppState>()(
       },
       isLoading: false,
       errors: {},
-      recentActivity: [
-        {
-          id: "1",
-          type: "buy",
-          token: "MOONCAT",
-          amount: "0.5 SOL",
-          launchpad: "Pump.fun",
-          timestamp: new Date(Date.now() - 300000).toISOString(), // 5 mins ago
-        },
-        {
-          id: "2", 
-          type: "deploy",
-          token: "MYTOKEN",
-          amount: null,
-          launchpad: "Pump.fun",
-          timestamp: new Date(Date.now() - 900000).toISOString(), // 15 mins ago
-        },
-        {
-          id: "3",
-          type: "sell",
-          token: "SOLDOG", 
-          amount: "100 tokens",
-          launchpad: "Pump.fun",
-          timestamp: new Date(Date.now() - 1800000).toISOString(), // 30 mins ago
-        }
-      ],
+      recentActivity: [],
       
       // Actions
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
@@ -200,13 +175,14 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true });
           
-          // Mock user data for now
+          // Real wallet connection will use external APIs
+          // For now, create minimal user with only wallet address
           const user: User = {
             walletAddress,
-            balance: 10.5,
+            balance: 0,
             tokenAccounts: [],
             tier: 'Legionnaire',
-            caesarPoints: 1250,
+            caesarPoints: 0,
             isConnected: true,
           };
           
@@ -226,14 +202,15 @@ export const useAppStore = create<AppState>()(
       },
       
       refreshPortfolio: async () => {
-        // Mock implementation
         const { user } = get();
         if (!user?.walletAddress) return;
         
+        // Real portfolio data will be fetched from APIs
+        // For now, maintain empty state until APIs are configured
         set((state) => ({
           portfolio: {
-            totalValue: 2450.75,
-            change24h: 12.5,
+            totalValue: 0,
+            change24h: 0,
             tokens: [],
           },
           isLoading: false,
@@ -242,7 +219,7 @@ export const useAppStore = create<AppState>()(
       },
       
       loadMarketData: async () => {
-        // Mock implementation
+        // Real market data will come from external APIs
         const marketData = {
           trendingTokens: [],
           recentTransactions: [],
@@ -257,7 +234,7 @@ export const useAppStore = create<AppState>()(
       },
       
       executeSnipe: async (tokenAddress: string, amount: number) => {
-        // Mock implementation
+        // Real snipe execution will use blockchain APIs
         const snipeId = Date.now().toString();
         const snipe: Snipe = {
           id: snipeId,
@@ -269,13 +246,8 @@ export const useAppStore = create<AppState>()(
         
         get().addSnipe(snipe);
         
-        // Simulate success after delay
-        setTimeout(() => {
-          get().updateSnipe(snipeId, { 
-            status: 'successful',
-            actualPrice: Math.random() * 0.01
-          });
-        }, 2000);
+        // Real implementation would interact with Solana blockchain
+        // For now, snipe remains in pending state until APIs are configured
       },
       
       setLoading: (key: string, loading: boolean) => {

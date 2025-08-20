@@ -62,8 +62,8 @@ import {
   importWalletSchema,
 } from "@shared/schema";
 
-// Mock connected wallet - in real app this would come from wallet adapter
-const MOCK_CONNECTED_WALLET = "3xK7pQ2bF4aZ8wXo9vJ2sN7qMnR4kP6tE5cB1xY9aA2z";
+// Connected wallet will come from wallet adapter when implemented
+const CONNECTED_WALLET = "";
 
 interface ManagedWallet extends WalletData {
   balanceNumber?: number;
@@ -96,7 +96,7 @@ export function WalletOps() {
   const { data: wallets = [], isLoading: walletsLoading, refetch: refetchWallets } = useQuery({
     queryKey: ['/api/wallets'],
     queryFn: async () => {
-      const response = await fetch(`/api/wallets?userWallet=${encodeURIComponent(MOCK_CONNECTED_WALLET)}`);
+      const response = await fetch(`/api/wallets?userWallet=${encodeURIComponent(CONNECTED_WALLET || '')}`);
       if (!response.ok) throw new Error('Failed to fetch wallets');
       return response.json();
     },
@@ -156,7 +156,7 @@ export function WalletOps() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
-          userWallet: MOCK_CONNECTED_WALLET,
+          userWallet: CONNECTED_WALLET,
         }),
       });
       if (!response.ok) throw new Error('Failed to create wallets');
@@ -202,7 +202,7 @@ export function WalletOps() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
-          userWallet: MOCK_CONNECTED_WALLET,
+          userWallet: CONNECTED_WALLET,
         }),
       });
       if (!response.ok) throw new Error('Failed to import wallet');
@@ -316,7 +316,7 @@ export function WalletOps() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fromWallet: MOCK_CONNECTED_WALLET,
+          fromWallet: CONNECTED_WALLET,
           toWallet: walletAddress,
           amount: 0.1, // Fund with 0.1 SOL
         }),

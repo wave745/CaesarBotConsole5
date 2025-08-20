@@ -46,18 +46,12 @@ export function Sniper() {
         description: `Caesar Sniper is now monitoring ${selectedLaunchpad}`,
       });
       
-      // Add a mock snipe to demonstrate
-      addSnipe({
-        id: Date.now().toString(),
-        tokenId: "mock-token-" + Date.now(),
-        amount: parseFloat(snipeAmount),
-        status: 'pending',
-        timestamp: new Date(),
-      });
+      // Real snipe execution will be implemented when APIs are configured
+      // For now, sniping activation only updates UI state
     }
   };
 
-  const mockSnipeHistory: any[] = [];
+  const snipeHistory: any[] = [];
 
   return (
     <div className="space-y-8">
@@ -438,7 +432,7 @@ export function Sniper() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {mockSnipeHistory.length > 0 ? mockSnipeHistory.map((snipe) => (
+            {snipeHistory.length > 0 ? snipeHistory.map((snipe: any) => (
               <div key={snipe.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg">
                 <div className="flex items-center space-x-4">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
