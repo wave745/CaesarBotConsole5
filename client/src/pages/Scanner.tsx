@@ -48,7 +48,7 @@ export function Scanner() {
 
   // Fetch tokens from scanner API
   const { data: tokens = [], isLoading, error } = useQuery<TokenScan[]>({
-    queryKey: ['/api/scanner/tokens', {
+    queryKey: ['scanner-tokens', {
       search: searchQuery,
       launchpad: selectedLaunchpad,
       minMarketCap: minMarketCap[0],
@@ -60,6 +60,26 @@ export function Scanner() {
       sortBy,
       sortOrder
     }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        search: searchQuery,
+        launchpad: selectedLaunchpad,
+        minMarketCap: minMarketCap[0].toString(),
+        maxMarketCap: maxMarketCap[0].toString(),
+        minVolume: minVolume[0].toString(),
+        minRating: minRating[0].toString(),
+        showHoneypots: showHoneypots.toString(),
+        requireLpLock: requireLpLock.toString(),
+        sortBy,
+        sortOrder
+      });
+      
+      const response = await fetch(`/api/scanner/tokens?${params}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tokens');
+      }
+      return response.json();
+    },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
