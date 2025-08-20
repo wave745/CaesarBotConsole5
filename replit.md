@@ -10,6 +10,17 @@ The application targets advanced cryptocurrency traders and developers who need 
 
 Preferred communication style: Simple, everyday language.
 
+## Current System Status (August 2025)
+
+The application is currently running and functional with the following state:
+- Backend Express server running on port 5000
+- Frontend Vite development server integrated
+- Mock data mode activated (real API integrations temporarily disabled)
+- In-memory storage using MemStorage class
+- Database schema defined but using temporary storage
+- All core UI components and pages implemented
+- Wallet creation and management functionality working
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -41,3 +52,95 @@ Real-time market data comes from **DEX aggregators** and **price oracles** to pr
 Font resources are loaded from **Google Fonts** (Inter, JetBrains Mono) to maintain consistent typography across the application.
 
 The development environment includes **Replit-specific plugins** for enhanced development experience and debugging capabilities when running in the Replit environment.
+
+## Project Structure
+
+### Core Files and Components
+
+**Configuration & Setup:**
+- `vite.config.ts` - Build configuration with path aliases (@, @shared, @assets)
+- `tailwind.config.ts` - Styling configuration with custom Caesar theme colors
+- `drizzle.config.ts` - Database ORM configuration
+- `package.json` - Dependencies including Solana, React Query, Zustand
+
+**Backend Structure:**
+- `server/index.ts` - Express server entry point
+- `server/routes.ts` - API route definitions with external service integrations
+- `server/storage.ts` - Data storage interface and in-memory implementation
+- `server/services/api.ts` - External API service classes (Helius, Birdeye, Jupiter, OpenAI, Supabase)
+- `shared/schema.ts` - Database schema and validation schemas using Drizzle + Zod
+
+**Frontend Structure:**
+- `client/src/main.tsx` - React application entry point
+- `client/src/App.tsx` - Root component with routing and providers
+- `client/src/components/Layout.tsx` - Main layout with sidebar and header
+- `client/src/store/useAppStore.ts` - Global state management with Zustand
+- `client/src/lib/api/` - Client-side API service modules
+- `client/src/lib/queryClient.ts` - React Query configuration
+- `client/src/pages/` - Main application pages (Dashboard, Sniper, WalletOps, etc.)
+
+### Key Features Implemented
+
+**1. Dashboard Page** (`client/src/pages/Dashboard.tsx`)
+- Portfolio overview with real-time stats
+- Market data display with trending tokens
+- AI trading controls and sniper integration
+- Recent activity and trade execution interface
+
+**2. Caesar Sniper** (`client/src/pages/Sniper.tsx`)
+- Automated token sniping configuration
+- Bundle bot for multi-wallet operations  
+- Manual snipe functionality
+- Token filtering and launchpad selection
+
+**3. Wallet Operations** (`client/src/pages/WalletOps.tsx`)
+- Multi-wallet management system
+- Bulk wallet creation and import
+- Token transfers and multi-send functionality
+- Balance tracking and private key management
+
+**4. Scanner, Deploy, Rewards Pages**
+- Token scanning with advanced filters
+- Token deployment to launchpads
+- Gamified reward system with missions
+
+### API Integration Points
+
+**External Services Integrated:**
+- **Helius API** - Solana RPC, balance queries, transaction history
+- **Birdeye API** - Token prices, trending tokens, OHLCV data
+- **Jupiter API** - DEX aggregation and trading quotes
+- **OpenAI API** - AI-powered trading analysis
+- **Supabase** - User stats and authentication
+- **Pump.fun & other launchpads** - Token deployment and monitoring
+
+**Storage System:**
+- Currently using in-memory storage (`MemStorage`)
+- Database schema defined for PostgreSQL with tables: users, tokens, snipes, deployments, wallets
+- Migration system ready via Drizzle Kit
+
+## Technical Decisions
+
+**State Management:**
+- Zustand for client-side global state (UI, user data, trading state)
+- React Query for server state management and API caching
+- Persistent storage for user preferences and session data
+
+**Styling & UI:**
+- Dark theme with Caesar branding (blacks, golds, purples)
+- Responsive design with mobile-first approach
+- Custom CSS variables for consistent theming
+- Shadcn/ui components for consistent UI patterns
+
+**Development Workflow:**
+- Single npm run dev command starts both frontend and backend
+- Hot reloading for development efficiency
+- TypeScript throughout for type safety
+- Modular architecture for easy feature additions
+
+## Recent Changes
+
+- August 2025: Complete codebase audit and documentation
+- Identified current mock data state and real API integration points
+- Confirmed all core features are implemented and functional
+- Documented system architecture and component relationships
