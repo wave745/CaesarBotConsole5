@@ -472,6 +472,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Deploy Console API endpoints
+  app.post("/api/deploy/upload-image", async (req, res) => {
+    try {
+      // Mock IPFS upload - in production, integrate with PumpPortal /upload/img
+      const mockHash = 'Qm' + Math.random().toString(36).substr(2, 44);
+      const ipfsUri = `https://ipfs.io/ipfs/${mockHash}`;
+      
+      res.json({
+        success: true,
+        ipfs: ipfsUri,
+        hash: mockHash
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/deploy/upload-metadata", async (req, res) => {
+    try {
+      const { name, symbol, description, imageUri, twitter, telegram, website } = req.body;
+      
+      const metadata = {
+        name,
+        symbol, 
+        description,
+        image: imageUri,
+        external_url: website,
+        twitter,
+        telegram
+      };
+      
+      // Mock metadata upload - in production, integrate with PumpPortal /upload/meta
+      const mockHash = 'Qm' + Math.random().toString(36).substr(2, 44);
+      const metadataUri = `https://ipfs.io/ipfs/${mockHash}`;
+      
+      res.json({
+        success: true,
+        uri: metadataUri,
+        metadata
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/deploy/create-token", async (req, res) => {
+    try {
+      const {
+        name,
+        symbol,
+        imageUri,
+        devWallet,
+        devBuyAmount,
+        slippage,
+        priorityFee,
+        launchpad,
+        network,
+        multiWallets = []
+      } = req.body;
+
+      // Generate mock mint address
+      const mockMint = Math.random().toString(36).substr(2, 44);
+      const mockSignature = Math.random().toString(36).substr(2, 88);
+      
+      // Mock deployment result
+      const deploymentResult = {
+        success: true,
+        mint: mockMint,
+        signature: mockSignature,
+        explorerUrl: network === 'devnet' 
+          ? `https://solscan.io/token/${mockMint}?cluster=devnet`
+          : `https://solscan.io/token/${mockMint}`,
+        safetyCheck: {
+          score: Math.floor(Math.random() * 40) + 60, // 60-100
+          risks: []
+        }
+      };
+
+      res.json(deploymentResult);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/deploy/buy-token", async (req, res) => {
+    try {
+      const { tokenMint, walletAddress, amount, slippage, priorityFee, pool } = req.body;
+      
+      // Mock buy transaction
+      const mockSignature = Math.random().toString(36).substr(2, 88);
+      
+      res.json({
+        success: true,
+        signature: mockSignature,
+        amount,
+        walletAddress
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/deploy/create-wallet", async (req, res) => {
+    try {
+      // Mock burner wallet generation
+      const mockWallet = {
+        publicKey: Math.random().toString(36).substr(2, 44),
+        privateKey: Math.random().toString(36).substr(2, 88),
+        apiKey: Math.random().toString(36).substr(2, 26)
+      };
+      
+      res.json(mockWallet);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/twitter/post", async (req, res) => {
+    try {
+      const { message, tokenMint } = req.body;
+      
+      // Mock Twitter post
+      const mockTweetId = Math.random().toString(36).substr(2, 19);
+      
+      res.json({
+        success: true,
+        tweetId: mockTweetId,
+        url: `https://twitter.com/user/status/${mockTweetId}`
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/rugcheck/:mint", async (req, res) => {
+    try {
+      const { mint } = req.params;
+      
+      // Mock RugCheck response
+      const mockReport = {
+        mint,
+        score: Math.floor(Math.random() * 40) + 60,
+        risks: [],
+        status: 'safe'
+      };
+      
+      res.json(mockReport);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Token operations
   app.post("/api/tokens", async (req, res) => {
     try {
