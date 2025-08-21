@@ -534,7 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/user/:address/stats", async (req, res) => {
     try {
       const { address } = req.params;
-      const result = await supabaseService.getUserStats(address);
+      const result = await supabaseService.instance.getUserStats(address);
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
@@ -544,7 +544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/leaderboard", async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 100;
-      const result = await supabaseService.getLeaderboard(limit);
+      const result = await supabaseService.instance.getLeaderboard(limit);
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });

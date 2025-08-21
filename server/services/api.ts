@@ -167,4 +167,14 @@ export const heliusAPI = new HeliusAPIServer();
 export const birdeyeAPI = new BirdeyeAPIServer();
 export const jupiterAPI = new JupiterAPIServer();
 export const openaiService = new OpenAIServiceServer();
-export const supabaseService = new SupabaseServiceServer();
+
+// Lazy initialization of Supabase service to ensure environment variables are loaded
+let _supabaseService: SupabaseServiceServer | null = null;
+export const supabaseService = {
+  get instance() {
+    if (!_supabaseService) {
+      _supabaseService = new SupabaseServiceServer();
+    }
+    return _supabaseService;
+  }
+};
