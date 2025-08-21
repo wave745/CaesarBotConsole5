@@ -930,20 +930,40 @@ function TransferDialog({ wallets, onSubmit, isLoading, isDevnet }: {
               data-testid="from-wallet-select"
             >
               <option value="">Select source wallet...</option>
-              {wallets
-                .filter(wallet => wallet.sol_balance > 0)
-                .map((wallet) => (
-                <option key={wallet.pubkey} value={wallet.pubkey}>
-                  {wallet.label} • {wallet.sol_balance.toFixed(6)} SOL • {wallet.pubkey.slice(0, 8)}...
-                </option>
-              ))}
+              {wallets.length === 0 ? (
+                <option disabled>No wallets available</option>
+              ) : (
+                wallets.map((wallet) => (
+                  <option 
+                    key={wallet.pubkey} 
+                    value={wallet.pubkey}
+                    disabled={wallet.sol_balance <= 0}
+                  >
+                    {wallet.label || 'Wallet'} • {wallet.sol_balance.toFixed(6)} SOL • {wallet.pubkey.slice(0, 8)}...
+                    {wallet.sol_balance <= 0 ? ' (Insufficient balance)' : ''}
+                  </option>
+                ))
+              )}
             </select>
             {errors.fromWallet && (
               <p className="text-red-400 text-sm mt-1">{errors.fromWallet.message}</p>
             )}
             {selectedWalletData && (
-              <p className="text-xs text-gray-400 mt-1">
-                Available: {selectedWalletData.sol_balance.toFixed(9)} SOL
+              <div className="mt-1 space-y-1">
+                <p className="text-xs text-gray-400">
+                  Available: {selectedWalletData.sol_balance.toFixed(9)} SOL
+                </p>
+                {isDevnet && selectedWalletData.sol_balance === 0 && (
+                  <p className="text-xs text-yellow-400">
+                    💡 This wallet has no SOL. Use the Airdrop button to get devnet SOL first.
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {wallets.length > 0 && wallets.every(w => w.sol_balance === 0) && (
+              <p className="text-xs text-yellow-400 mt-1">
+                💡 All wallets have 0 SOL. {isDevnet ? 'Use Airdrop to get devnet SOL' : 'Fund your wallets to enable transfers'}.
               </p>
             )}
           </div>
