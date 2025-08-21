@@ -1,3 +1,9 @@
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local first, then .env
+dotenv.config({ path: '.env.local' });
+dotenv.config();
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -57,10 +63,10 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 80 if not specified.
+  // Default to 5000 for development, 80 for production
   // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '80', 10);
+  const defaultPort = app.get("env") === "development" ? '5000' : '80';
+  const port = parseInt(process.env.PORT || defaultPort, 10);
   server.listen({
     port,
     host: "0.0.0.0",

@@ -180,11 +180,27 @@ export function WalletOps() {
       
       // Show private keys once for security
       if (result.privateKeys && showPrivateKeys) {
-        toast.success(
-          `${data.count} wallet(s) created! Private keys logged to console (save them now).`,
-          { duration: 15000 }
-        );
-        console.log('🔐 PRIVATE KEYS (Save these immediately!):', result.privateKeys);
+        try {
+          const keysText = Array.isArray(result.privateKeys)
+            ? result.privateKeys.join('\n')
+            : String(result.privateKeys);
+          const blob = new Blob([keysText], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `caesarbot-private-keys-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          toast.success(
+            `${data.count} wallet(s) created! Private keys downloaded. Keep them secure.`,
+            { duration: 15000 }
+          );
+        } catch (_e) {
+          toast.error('Failed to trigger private key download. Please try again.');
+        }
       } else {
         toast.success(`${data.count} wallet(s) created successfully`);
       }
