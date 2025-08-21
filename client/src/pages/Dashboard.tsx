@@ -20,9 +20,9 @@ export function Dashboard() {
   const [selectedLaunchpad, setSelectedLaunchpad] = useState("pumpfun");
   
   // Data will be fetched from real APIs when configured
-  const walletData = null;
+  const walletData: { balance?: number } | null = null;
   const walletLoading = false;
-  const portfolio = null;
+  const portfolio: { totalValue: number; change24h: number; tokens: any[] } | null = null;
   const portfolioLoading = false;
   const marketData = null;
   const marketLoading = false;
@@ -34,28 +34,28 @@ export function Dashboard() {
       title: "Portfolio Value",
       value: portfolio ? `$${portfolio.totalValue.toFixed(2)}` : walletLoading ? "Loading..." : "$0.00",
       change: portfolio ? `${portfolio.change24h >= 0 ? '+' : ''}${portfolio.change24h.toFixed(2)}%` : "+0.00%",
-      changeType: portfolio?.change24h >= 0 ? "positive" : "negative",
+      changeType: portfolio && portfolio.change24h >= 0 ? "positive" : "negative",
       icon: Wallet,
     },
     {
       title: "SOL Balance",
       value: walletData ? `${(walletData.balance || 0).toFixed(4)} SOL` : walletLoading ? "Loading..." : "0 SOL",
       change: "Real-time",
-      changeType: "neutral",
+      changeType: "neutral" as const,
       icon: () => <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" />,
     },
     {
       title: "Token Holdings",
       value: portfolio ? portfolio.tokens.length.toString() : "0",
       change: "Active positions",
-      changeType: "positive",
+      changeType: "positive" as const,
       icon: Rocket,
     },
     {
       title: "Caesar Points",
       value: user?.caesarPoints?.toLocaleString() || "0",
       change: `${user?.tier || 'Legionnaire'}`,
-      changeType: "neutral",
+      changeType: "neutral" as const,
       icon: () => <img src={caesarBotLogo} alt="CaesarBot" className="w-8 h-8" />,
     },
   ];

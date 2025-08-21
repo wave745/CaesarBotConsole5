@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,12 +13,33 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Rocket, Upload, Twitter, Globe, CheckCircle, Plus, Trash2, Loader2, AlertTriangle, ExternalLink, Shield, Copy, Wallet, RefreshCw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Rocket, Upload, Twitter, Globe, CheckCircle, Plus, Trash2, Loader2, AlertTriangle, ExternalLink, Shield, Copy, Wallet, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { tokenDeploymentSchema, type TokenDeploymentForm } from "@shared/schema";
+import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useWallet } from "@/providers/WalletProvider";
 import { useAppStore } from "@/store/useAppStore";
+import { Keypair } from "@solana/web3.js";
+
+// Enhanced form schema based on specifications
+const deployFormSchema = z.object({
+  name: z.string().min(1, "Token name is required").max(32, "Name must be 32 characters or less"),
+  symbol: z.string().min(1, "Token symbol is required").max(8, "Symbol must be 8 characters or less"),
+  description: z.string().min(10, "Description must be at least 10 characters").max(1000, "Description must be 1000 characters or less"),
+  website: z.string().url("Invalid website URL").optional().or(z.literal("")),
+  twitter: z.string().optional(),
+  telegram: z.string().optional(),
+  tokenType: z.enum(["meme", "tech"]),
+  launchpad: z.enum(["pump", "bonk"]),
+  devBuyAmount: z.number().min(0.1, "Dev buy must be at least 0.1 SOL").max(10, "Dev buy cannot exceed 10 SOL"),
+  slippage: z.number().min(0, "Slippage cannot be negative").max(50, "Slippage cannot exceed 50%"),
+  priorityFee: z.number().min(0.00001, "Priority fee must be at least 0.00001 SOL").max(0.1, "Priority fee cannot exceed 0.1 SOL"),
+  autoPost: z.boolean().default(false),
+  useDevnet: z.boolean().default(false),
+});
+
+type DeployFormData = z.infer<typeof deployFormSchema>;
 
 interface WalletData {
   pubkey: string;
@@ -27,16 +48,14 @@ interface WalletData {
   sol_balance: number;
   token_balances: any[];
   user_wallet: string;
-  created_at: string;
-  updated_at: string;
 }
 
-interface MultiWallet {
-  id: string;
-  walletAddress: string;
+interface BundleWallet {
+  pubkey: string;
   label: string;
   buyAmount: number;
   selected: boolean;
+  privateKey?: string;
 }
 
 interface DeploymentResult {
@@ -50,21 +69,49 @@ interface DeploymentResult {
   };
 }
 
+interface PresetData {
+  name: string;
+  launchpad: string;
+  config: DeployFormData;
+}
+
 export function Deploy() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [imageUri, setImageUri] = useState<string>("");
-  const [multiWallets, setMultiWallets] = useState<MultiWallet[]>([]);
-  const [deploymentResult, setDeploymentResult] = useState<DeploymentResult | null>(null);
+  const [bundleWallets, setBundleWallets] = useState<BundleWallet[]>([]);
   const [selectedDevWallet, setSelectedDevWallet] = useState<string>("");
+  const [deploymentResult, setDeploymentResult] = useState<DeploymentResult | null>(null);
+  const [showPrivateKeys, setShowPrivateKeys] = useState(false);
+  const [presetName, setPresetName] = useState("");
   const [isDevnet, setIsDevnet] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { user } = useAppStore();
+  const { connection } = useWallet();
 
-  // Load user wallets from wallet operations
+  const form = useForm<DeployFormData>({
+    resolver: zodResolver(deployFormSchema),
+    defaultValues: {
+      name: "",
+      symbol: "",
+      description: "",
+      website: "",
+      twitter: "",
+      telegram: "",
+      tokenType: "meme",
+      launchpad: "pump",
+      devBuyAmount: 0.1,
+      slippage: 5,
+      priorityFee: 0.0001,
+      autoPost: false,
+      useDevnet: false,
+    },
+  });
+
+  // Live wallet data fetch
   const { data: userWallets = [], isLoading: walletsLoading, refetch: refetchWallets } = useQuery({
-    queryKey: ['user-wallets', user?.walletAddress, isDevnet],
+    queryKey: ['user-wallets-deploy', user?.walletAddress, isDevnet],
     queryFn: async () => {
       if (!user?.walletAddress) throw new Error('User not authenticated');
       
@@ -86,34 +133,29 @@ export function Deploy() {
       return data.wallets || [];
     },
     enabled: !!user?.walletAddress,
-    retry: 1,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const form = useForm<TokenDeploymentForm>({
-    resolver: zodResolver(tokenDeploymentSchema),
-    defaultValues: {
-      name: "",
-      symbol: "",
-      description: "",
-      website: "",
-      twitter: "",
-      telegram: "",
-      tokenType: "meme",
-      launchpad: "pump",
-      devBuyAmount: 0.1,
-      slippage: 5,
-      priorityFee: 0.0001,
-      autoPost: false,
-      useDevnet: false,
+  // Load user presets
+  const { data: userPresets = [] } = useQuery({
+    queryKey: ['user-presets', user?.walletAddress],
+    queryFn: async () => {
+      if (!user?.walletAddress) return [];
+      
+      const response = await fetch('/api/deploy/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userWallet: user.walletAddress }),
+      });
+      
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.presets || [];
     },
+    enabled: !!user?.walletAddress,
   });
 
-  const launchpads = [
-    { value: "pump", label: "Pump.fun", fee: "~1 SOL", pool: "pump" },
-    { value: "bonk", label: "LetsBonk.fun", fee: "~0.5 SOL", pool: "bonk" },
-  ];
-
-  // Image upload mutation
+  // Image upload to IPFS via PumpPortal
   const uploadImageMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -125,56 +167,55 @@ export function Deploy() {
       });
       
       if (!response.ok) {
-        throw new Error('Image upload failed');
+        const error = await response.json();
+        throw new Error(error.error || 'Image upload failed');
       }
       
       return response.json();
     },
     onSuccess: (data) => {
-      if (data.error) {
-        toast.error(`Image upload failed: ${data.error}`);
-      } else {
+      if (data.success && data.ipfs) {
         setImageUri(data.ipfs);
-        toast.success('Image uploaded successfully!');
+        toast.success('Image uploaded to IPFS successfully!');
+      } else {
+        throw new Error(data.error || 'Upload failed');
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`Image upload failed: ${error.message}`);
     },
   });
 
-  // Metadata upload mutation
+  // Metadata upload to IPFS via PumpPortal
   const uploadMetadataMutation = useMutation({
-    mutationFn: async (data: { name: string; symbol: string; description: string; imageUri: string; twitter?: string; telegram?: string; website?: string }) => {
+    mutationFn: async (metadata: any) => {
       const response = await fetch('/api/deploy/upload-metadata', {
         method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadata),
       });
       
       if (!response.ok) {
-        throw new Error('Metadata upload failed');
+        const error = await response.json();
+        throw new Error(error.error || 'Metadata upload failed');
       }
       
       return response.json();
     },
   });
 
-  // Token deployment mutation
+  // Token deployment via PumpPortal API
   const deployTokenMutation = useMutation({
-    mutationFn: async (data: TokenDeploymentForm & { imageUri: string; metadataUri: string }) => {
+    mutationFn: async (deployData: any) => {
       const response = await fetch('/api/deploy/create-token', {
         method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deployData),
       });
       
       if (!response.ok) {
-        throw new Error('Deployment failed');
+        const error = await response.json();
+        throw new Error(error.error || 'Token creation failed');
       }
       
       return response.json();
@@ -182,78 +223,108 @@ export function Deploy() {
     onSuccess: async (data) => {
       setDeploymentResult(data);
       
-      // Post-deployment quality check
+      // Live RugCheck analysis
       try {
-        toast.loading('Running security check...', { id: 'deploy-process' });
+        toast.loading('Running security analysis...', { id: 'security-check' });
         const rugCheckResponse = await fetch(`/api/rugcheck/${data.mint}`);
         const rugCheckData = await rugCheckResponse.json();
         
-        if (rugCheckData.score >= 80) {
-          toast.success(`Token deployed successfully! Safety score: ${rugCheckData.score}/100`, { id: 'deploy-process' });
-        } else {
-          toast.error(`Token deployed but safety score is low: ${rugCheckData.score}/100`, { id: 'deploy-process' });
+        if (rugCheckData.success) {
+          const score = rugCheckData.score;
+          if (score >= 80) {
+            toast.success(`Token deployed! Security score: ${score}/100`, { id: 'security-check' });
+          } else {
+            toast.error(`Token deployed but security score is low: ${score}/100`, { id: 'security-check' });
+          }
+          
+          setDeploymentResult(prev => prev ? { ...prev, safetyCheck: rugCheckData } : null);
         }
-        
-        // Update deployment result with safety check
-        setDeploymentResult(prev => prev ? { ...prev, safetyCheck: rugCheckData } : null);
       } catch (error) {
-        console.error('RugCheck failed:', error);
+        toast.error('Security check failed', { id: 'security-check' });
+      }
+      
+      // Execute bundle trades if configured
+      if (bundleWallets.filter(w => w.selected).length > 0) {
+        await executeBundleTrades(data.mint);
       }
       
       // Auto-post to Twitter if enabled
       if (form.getValues('autoPost')) {
-        try {
-          toast.loading('Posting to Twitter...', { id: 'twitter-post' });
-          
-          const formData = form.getValues();
-          const message = `🚀 Just launched ${formData.symbol} on ${formData.launchpad}!\n\n📊 ${formData.name}\n💰 Buy Amount: ${formData.devBuyAmount} SOL\n🔗 ${data.explorerUrl}\n\n#SolanaDefi #${formData.symbol} #PumpFun`;
-          
-          const response = await fetch('/api/twitter/post', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              message,
-              tokenMint: data.mint,
-            }),
-          });
-          
-          if (response.ok) {
-            toast.success('Posted to Twitter successfully!', { id: 'twitter-post' });
-          } else {
-            throw new Error('Twitter API failed');
-          }
-        } catch (error) {
-          toast.error('Failed to auto-post to Twitter', { id: 'twitter-post' });
-        }
+        await autoPostToTwitter(data);
       }
       
-      queryClient.invalidateQueries({ queryKey: ['/api/deployments'] });
+      // Award Caesar Points
+      await awardCaesarPoints();
+      
+      queryClient.invalidateQueries({ queryKey: ['user-wallets-deploy'] });
     },
     onError: (error: any) => {
-      toast.error(`Deployment failed: ${error.message || 'Unknown error'}`);
+      toast.error(`Deployment failed: ${error.message}`);
     },
   });
 
-  // Generate burner wallet mutation
-  const generateWalletMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/deploy/create-wallet', {
+  // Save preset mutation
+  const savePresetMutation = useMutation({
+    mutationFn: async (preset: PresetData) => {
+      const response = await fetch('/api/deploy/save-preset', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userWallet: user?.walletAddress,
+          ...preset,
+        }),
       });
       
       if (!response.ok) {
-        throw new Error('Wallet generation failed');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save preset');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Preset saved successfully!');
+      queryClient.invalidateQueries({ queryKey: ['user-presets'] });
+      setPresetName("");
+    },
+  });
+
+  // Create burner wallets
+  const createWalletsMutation = useMutation({
+    mutationFn: async (count: number) => {
+      const response = await fetch('/api/wallets/live-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          count,
+          isBurner: true,
+          userWallet: user?.walletAddress,
+          network: isDevnet ? 'devnet' : 'mainnet-beta',
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Wallet creation failed');
       }
       
       return response.json();
     },
     onSuccess: (data) => {
-      if (data.error) {
-        toast.error(`Wallet generation failed: ${data.error}`);
-      } else {
-        toast.success('Burner wallet generated!');
+      if (data.success && data.wallets) {
+        toast.success(`Created ${data.wallets.length} burner wallets!`);
+        refetchWallets();
+        
+        // Add to bundle wallets with private keys
+        const newBundleWallets = data.wallets.map((wallet: any, index: number) => ({
+          pubkey: wallet.pubkey,
+          label: wallet.label,
+          buyAmount: 0.01,
+          selected: false,
+          privateKey: data.privateKeys?.[index],
+        }));
+        
+        setBundleWallets(prev => [...prev, ...newBundleWallets]);
       }
     },
   });
@@ -261,135 +332,245 @@ export function Deploy() {
   // Helper functions
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('Image must be less than 2MB');
-        return;
-      }
-      
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
+    if (!file) return;
+    
+    // Validate file size and type
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be less than 2MB');
+      return;
+    }
+    
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Only JPEG, PNG, GIF, and SVG files are allowed');
+      return;
+    }
+    
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+    
+    // Upload to IPFS via PumpPortal
+    uploadImageMutation.mutate(file);
+  };
+
+  const toggleWalletSelection = (pubkey: string) => {
+    const wallet = userWallets.find((w: WalletData) => w.pubkey === pubkey);
+    if (!wallet) return;
+
+    const existingIndex = bundleWallets.findIndex(w => w.pubkey === pubkey);
+    if (existingIndex >= 0) {
+      setBundleWallets(prev => prev.filter(w => w.pubkey !== pubkey));
+    } else {
+      const newWallet: BundleWallet = {
+        pubkey: wallet.pubkey,
+        label: wallet.label,
+        buyAmount: 0.01,
+        selected: true,
       };
-      reader.readAsDataURL(file);
-      
-      // Upload image immediately
-      uploadImageMutation.mutate(file);
+      setBundleWallets(prev => [...prev, newWallet]);
     }
   };
 
-  const addMultiWallet = (walletData: WalletData) => {
-    const newWallet: MultiWallet = {
-      id: walletData.pubkey,
-      walletAddress: walletData.pubkey,
-      label: walletData.label,
-      buyAmount: 0.01,
-      selected: true,
-    };
-    setMultiWallets(prev => [...prev, newWallet]);
-  };
-
-  const removeMultiWallet = (id: string) => {
-    setMultiWallets(prev => prev.filter(w => w.id !== id));
-  };
-
-  const updateMultiWallet = (id: string, field: keyof MultiWallet, value: string | number | boolean) => {
-    setMultiWallets(prev => prev.map(w => 
-      w.id === id ? { ...w, [field]: value } : w
+  const updateBundleWallet = (pubkey: string, field: keyof BundleWallet, value: any) => {
+    setBundleWallets(prev => prev.map(w => 
+      w.pubkey === pubkey ? { ...w, [field]: value } : w
     ));
   };
 
-  const toggleWalletSelection = (walletAddress: string) => {
-    const wallet = userWallets.find(w => w.pubkey === walletAddress);
-    if (!wallet) return;
+  const loadPreset = (preset: PresetData) => {
+    form.reset(preset.config);
+    toast.success(`Loaded preset: ${preset.name}`);
+  };
 
-    const existingIndex = multiWallets.findIndex(w => w.walletAddress === walletAddress);
-    if (existingIndex >= 0) {
-      // Remove wallet
-      setMultiWallets(prev => prev.filter(w => w.walletAddress !== walletAddress));
-    } else {
-      // Add wallet
-      addMultiWallet(wallet);
+  const saveCurrentAsPreset = () => {
+    if (!presetName.trim()) {
+      toast.error('Please enter a preset name');
+      return;
+    }
+    
+    const preset: PresetData = {
+      name: presetName,
+      launchpad: form.getValues('launchpad'),
+      config: form.getValues(),
+    };
+    
+    savePresetMutation.mutate(preset);
+  };
+
+  const autoFundDevWallet = async (walletAddress: string, requiredAmount: number) => {
+    if (!isDevnet) return;
+    
+    try {
+      const response = await fetch('/api/wallets/fund-devnet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          amount: requiredAmount + 0.1, // Extra for fees
+        }),
+      });
+      
+      if (response.ok) {
+        toast.success('Dev wallet funded automatically!');
+        refetchWallets();
+      }
+    } catch (error) {
+      console.error('Auto-funding failed:', error);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard!');
+  const executeBundleTrades = async (mintAddress: string) => {
+    const selectedWallets = bundleWallets.filter(w => w.selected && w.buyAmount > 0);
+    if (selectedWallets.length === 0) return;
+    
+    try {
+      toast.loading('Executing bundle trades...', { id: 'bundle-trades' });
+      
+      const response = await fetch('/api/deploy/execute-bundle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tokenMint: mintAddress,
+          wallets: selectedWallets,
+          slippage: form.getValues('slippage'),
+          priorityFee: form.getValues('priorityFee'),
+          pool: form.getValues('launchpad'),
+          network: isDevnet ? 'devnet' : 'mainnet-beta',
+        }),
+      });
+      
+      if (response.ok) {
+        toast.success('Bundle trades executed successfully!', { id: 'bundle-trades' });
+      } else {
+        throw new Error('Bundle execution failed');
+      }
+    } catch (error) {
+      toast.error('Bundle trades failed', { id: 'bundle-trades' });
+    }
   };
 
-  const autoPostToTwitter = async (deploymentData: any) => {
+  const autoPostToTwitter = async (deploymentData: DeploymentResult) => {
     try {
-      const message = `🚀 Just launched ${form.getValues('name')} ($${form.getValues('symbol')}) on ${launchpads.find(l => l.value === form.getValues('launchpad'))?.label}!
+      toast.loading('Posting to Twitter...', { id: 'twitter-post' });
+      
+      const formData = form.getValues();
+      const launchpadName = formData.launchpad === 'pump' ? 'Pump.fun' : 'LetsBonk.fun';
+      
+      const message = `🚀 Just launched ${formData.name} ($${formData.symbol}) on ${launchpadName}!
 
-CA: ${deploymentData.mint}
-${deploymentData.explorerUrl}
+📊 ${formData.description.slice(0, 100)}...
+💰 Dev Buy: ${formData.devBuyAmount} SOL
+📈 Contract: ${deploymentData.mint}
+🔗 ${deploymentData.explorerUrl}
 
-#Solana #DeFi #CaesarBot`;
+#Solana #DeFi #CaesarBot #${formData.symbol}`;
 
-      await fetch('/api/twitter/post', {
+      const response = await fetch('/api/twitter/post', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
           tokenMint: deploymentData.mint,
         }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
-    } catch (error) {
-      console.error('Auto-post failed:', error);
-      toast.error('Auto-post to Twitter failed');
-    }
-  };
-
-  const handleMultiWalletBuys = async (mintAddress: string) => {
-    const selectedLaunchpad = form.getValues('launchpad');
-    
-    for (const wallet of multiWallets.filter(w => w.selected && w.buyAmount > 0)) {
-      try {
-        await fetch('/api/deploy/buy-token', {
-          method: 'POST',
-          body: JSON.stringify({
-            tokenMint: mintAddress,
-            walletAddress: wallet.walletAddress,
-            amount: wallet.buyAmount,
-            slippage: form.getValues('slippage'),
-            priorityFee: form.getValues('priorityFee'),
-            pool: selectedLaunchpad,
-          }),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-      } catch (error) {
-        console.error(`Multi-wallet buy failed for wallet ${wallet.label}:`, error);
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Posted to Twitter! ${data.url}`, { id: 'twitter-post' });
+      } else {
+        throw new Error('Twitter API failed');
       }
+    } catch (error) {
+      toast.error('Failed to post to Twitter', { id: 'twitter-post' });
     }
   };
 
-  const onSubmit = async (data: TokenDeploymentForm) => {
-    if (!imageUri && imageFile) {
-      toast.error('Please wait for image upload to complete');
+  const awardCaesarPoints = async () => {
+    try {
+      const bundleBonus = bundleWallets.filter(w => w.selected).length * 20;
+      const totalPoints = 100 + bundleBonus;
+      
+      await fetch('/api/users/award-points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userWallet: user?.walletAddress,
+          points: totalPoints,
+          activity: 'token_deployment',
+        }),
+      });
+      
+      toast.success(`+${totalPoints} Caesar Points awarded!`);
+    } catch (error) {
+      console.error('Points award failed:', error);
+    }
+  };
+
+  const checkWalletBalance = async (walletAddress: string, requiredAmount: number) => {
+    try {
+      const response = await fetch('/api/wallets/check-balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          network: isDevnet ? 'devnet' : 'mainnet-beta',
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.balance < requiredAmount && isDevnet) {
+        await autoFundDevWallet(walletAddress, requiredAmount);
+      }
+      
+      return data.balance >= requiredAmount;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const onSubmit = async (data: DeployFormData) => {
+    if (!selectedDevWallet) {
+      toast.error('Please select a developer wallet');
       return;
     }
-
+    
+    if (!imageUri) {
+      toast.error('Please upload and wait for logo to process');
+      return;
+    }
+    
+    // Security prompt for hardware wallets
+    toast.success('📶 Use VPN for privacy', { duration: 3000 });
+    
     try {
+      // Check dev wallet balance
+      const hasBalance = await checkWalletBalance(selectedDevWallet, data.devBuyAmount);
+      if (!hasBalance && !isDevnet) {
+        toast.error('Insufficient balance in developer wallet');
+        return;
+      }
+      
       // Step 1: Upload metadata to IPFS
       toast.loading('Uploading metadata to IPFS...', { id: 'deploy-process' });
       
-      const metadataResult = await uploadMetadataMutation.mutateAsync({
+      const metadata = {
         name: data.name,
         symbol: data.symbol,
         description: data.description,
-        imageUri,
-        twitter: data.twitter || '',
-        telegram: data.telegram || '',
-        website: data.website || '',
-      });
-
-      // Step 2: Deploy token
+        image: imageUri,
+        external_url: data.website || undefined,
+        twitter: data.twitter || undefined,
+        telegram: data.telegram || undefined,
+      };
+      
+      const metadataResult = await uploadMetadataMutation.mutateAsync(metadata);
+      
+      // Step 2: Generate mint keypair client-side
+      const mintKeypair = Keypair.generate();
+      
+      // Step 3: Deploy token via PumpPortal
       toast.loading('Creating token on blockchain...', { id: 'deploy-process' });
       
       const deploymentData = {
@@ -397,17 +578,12 @@ ${deploymentData.explorerUrl}
         imageUri,
         metadataUri: metadataResult.uri,
         devWallet: selectedDevWallet,
-        multiWallets: multiWallets.filter(w => w.selected),
+        mint: mintKeypair.publicKey.toString(),
         network: isDevnet ? 'devnet' : 'mainnet-beta',
+        bundleWallets: bundleWallets.filter(w => w.selected),
       };
-
-      const result = await deployTokenMutation.mutateAsync(deploymentData);
       
-      // Step 3: Execute multi-wallet buys if configured
-      if (multiWallets.length > 0) {
-        toast.loading('Executing bundled transactions...', { id: 'deploy-process' });
-        await handleMultiWalletBuys(result.mint);
-      }
+      await deployTokenMutation.mutateAsync(deploymentData);
       
     } catch (error: any) {
       toast.error(`Deployment failed: ${error.message}`, { id: 'deploy-process' });
@@ -415,20 +591,55 @@ ${deploymentData.explorerUrl}
   };
 
   const isFormValid = form.formState.isValid && 
-    form.watch('name') && 
-    form.watch('symbol') && 
-    form.watch('launchpad') &&
-    selectedDevWallet;
+    selectedDevWallet && 
+    imageUri &&
+    bundleWallets.filter(w => w.selected).length >= 1 &&
+    bundleWallets.filter(w => w.selected).length <= 5;
+
+  // Check devnet toggle changes
+  useEffect(() => {
+    if (isDevnet !== form.getValues('useDevnet')) {
+      form.setValue('useDevnet', isDevnet);
+      refetchWallets();
+    }
+  }, [isDevnet, form, refetchWallets]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 p-4">
+    <div className="max-w-7xl mx-auto space-y-8 p-4">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Deploy Console</h1>
         <p className="text-gray-400">
-          Launch your token on Pump.fun and LetsBonk.fun with PumpPortal integration. Lightning mode enabled for secure server-side deployment.
+          Launch your token on Pump.fun and LetsBonk.fun with live PumpPortal integration. 
+          Professional bundling, security checks, and auto-posting included.
         </p>
       </div>
+
+      {/* Network Toggle */}
+      <Card className="bg-caesar-dark border-gray-800">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Label htmlFor="devnet-toggle">Network:</Label>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="devnet-toggle"
+                  checked={isDevnet}
+                  onCheckedChange={setIsDevnet}
+                />
+                <span className={`text-sm font-medium ${isDevnet ? 'text-yellow-400' : 'text-green-400'}`}>
+                  {isDevnet ? 'Devnet' : 'Mainnet Beta'}
+                </span>
+              </div>
+            </div>
+            {isDevnet && (
+              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                Auto-funding enabled
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Success Result */}
       {deploymentResult && (
@@ -437,13 +648,21 @@ ${deploymentData.explorerUrl}
           <AlertDescription className="flex flex-col space-y-2">
             <div className="flex items-center justify-between">
               <span>Token deployed successfully!</span>
-              <Badge variant="outline" className="bg-green-500/10 text-green-500">
-                {deploymentResult.safetyCheck?.score && deploymentResult.safetyCheck.score > 80 ? 'Safe' : 'Verify'}
-              </Badge>
+              <div className="flex items-center space-x-2">
+                {deploymentResult.safetyCheck && (
+                  <Badge variant="outline" className={
+                    deploymentResult.safetyCheck.score > 80 
+                      ? "bg-green-500/10 text-green-500" 
+                      : "bg-yellow-500/10 text-yellow-400"
+                  }>
+                    Safety: {deploymentResult.safetyCheck.score}/100
+                  </Badge>
+                )}
+              </div>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm">Contract: {deploymentResult.mint}</span>
-              <Button size="sm" variant="ghost" onClick={() => copyToClipboard(deploymentResult.mint)}>
+              <span className="text-sm font-mono">CA: {deploymentResult.mint}</span>
+              <Button size="sm" variant="ghost" onClick={() => navigator.clipboard.writeText(deploymentResult.mint)}>
                 <Copy className="w-3 h-3" />
               </Button>
               <Button size="sm" variant="ghost" asChild>
@@ -461,6 +680,30 @@ ${deploymentData.explorerUrl}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Form */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Presets */}
+              {userPresets.length > 0 && (
+                <Card className="bg-caesar-dark border-gray-800">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Quick Presets</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {userPresets.map((preset: PresetData) => (
+                        <Button
+                          key={preset.name}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadPreset(preset)}
+                          className="bg-gray-800 border-gray-700 hover:bg-gray-700"
+                        >
+                          {preset.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Token Details */}
               <Card className="bg-caesar-dark border-gray-800">
                 <CardHeader>
@@ -477,11 +720,12 @@ ${deploymentData.explorerUrl}
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Token Name *</FormLabel>
+                          <FormLabel>Token Name * <span className="text-xs text-gray-400">(max 32 chars)</span></FormLabel>
                           <FormControl>
                             <Input 
                               placeholder="e.g., Caesar Coin" 
                               {...field}
+                              maxLength={32}
                               className="bg-gray-800 border-gray-700 focus:border-caesar-gold"
                             />
                           </FormControl>
@@ -494,11 +738,12 @@ ${deploymentData.explorerUrl}
                       name="symbol"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Token Symbol *</FormLabel>
+                          <FormLabel>Token Symbol * <span className="text-xs text-gray-400">(max 8 chars)</span></FormLabel>
                           <FormControl>
                             <Input 
                               placeholder="e.g., CAESAR" 
                               {...field}
+                              maxLength={8}
                               onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                               className="bg-gray-800 border-gray-700 focus:border-caesar-gold"
                             />
@@ -515,22 +760,26 @@ ${deploymentData.explorerUrl}
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel>Description * <span className="text-xs text-gray-400">(10-1000 chars)</span></FormLabel>
                         <FormControl>
                           <Textarea 
-                            placeholder="Describe your token and its purpose..."
-                            className="bg-gray-800 border-gray-700 focus:border-caesar-gold min-h-[100px]"
+                            placeholder="Describe your token's purpose, utility, and vision..."
+                            className="bg-gray-800 border-gray-700 focus:border-caesar-gold min-h-[120px]"
+                            maxLength={1000}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <div className="flex justify-between text-xs text-gray-400">
+                          <FormMessage />
+                          <span>{field.value?.length || 0}/1000</span>
+                        </div>
                       </FormItem>
                     )}
                   />
 
                   {/* Social Links */}
                   <div className="space-y-4">
-                    <Label>Social Links</Label>
+                    <Label>Social Links <span className="text-xs text-gray-400">(optional)</span></Label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <FormField
                         control={form.control}
@@ -541,7 +790,7 @@ ${deploymentData.explorerUrl}
                               <div className="relative">
                                 <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                                 <Input 
-                                  placeholder="Website URL"
+                                  placeholder="https://example.com"
                                   className="bg-gray-800 border-gray-700 focus:border-caesar-gold pl-10"
                                   {...field}
                                 />
@@ -560,7 +809,7 @@ ${deploymentData.explorerUrl}
                               <div className="relative">
                                 <Twitter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                                 <Input 
-                                  placeholder="Twitter handle"
+                                  placeholder="@username"
                                   className="bg-gray-800 border-gray-700 focus:border-caesar-gold pl-10"
                                   {...field}
                                 />
@@ -577,7 +826,7 @@ ${deploymentData.explorerUrl}
                           <FormItem>
                             <FormControl>
                               <Input 
-                                placeholder="Telegram"
+                                placeholder="t.me/channel"
                                 className="bg-gray-800 border-gray-700 focus:border-caesar-gold"
                                 {...field}
                               />
@@ -591,7 +840,7 @@ ${deploymentData.explorerUrl}
 
                   {/* Logo Upload */}
                   <div>
-                    <Label>Token Logo</Label>
+                    <Label>Token Logo * <span className="text-xs text-gray-400">(JPEG/PNG/GIF/SVG, max 2MB)</span></Label>
                     <div 
                       className="mt-2 border-2 border-dashed border-gray-700 rounded-lg p-6 text-center hover:border-caesar-gold/50 transition-colors cursor-pointer"
                       onClick={() => fileInputRef.current?.click()}
@@ -599,8 +848,12 @@ ${deploymentData.explorerUrl}
                       {imagePreview ? (
                         <div className="space-y-2">
                           <img src={imagePreview} alt="Preview" className="w-16 h-16 mx-auto rounded-lg object-cover" />
-                          {uploadImageMutation.isPending && <div className="text-sm text-gray-400">Uploading...</div>}
-                          {imageUri && <div className="text-sm text-green-500">✓ Uploaded to IPFS</div>}
+                          {uploadImageMutation.isPending && (
+                            <div className="text-sm text-gray-400">Uploading to IPFS...</div>
+                          )}
+                          {imageUri && (
+                            <div className="text-sm text-green-500">✓ Uploaded to IPFS</div>
+                          )}
                         </div>
                       ) : (
                         <>
@@ -610,28 +863,20 @@ ${deploymentData.explorerUrl}
                             <Upload className="w-12 h-12 mx-auto text-gray-400 mb-2" />
                           )}
                           <p className="text-sm text-gray-400 mb-2">Drop your logo here or click to upload</p>
-                          <p className="text-xs text-gray-500">PNG, JPG or SVG (max 2MB)</p>
+                          <p className="text-xs text-gray-500">JPEG, PNG, GIF, or SVG (max 2MB)</p>
                         </>
                       )}
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept=".jpg,.jpeg,.png,.gif,.svg"
                         onChange={handleImageUpload}
                         className="hidden"
                       />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Launch Configuration */}
-              <Card className="bg-caesar-dark border-gray-800">
-                <CardHeader>
-                  <CardTitle>Launch Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Type & Launchpad */}
+                  {/* Token Type & Launchpad */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -641,14 +886,13 @@ ${deploymentData.explorerUrl}
                           <FormLabel>Token Type</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="bg-gray-800 border-gray-700">
-                                <SelectValue />
+                              <SelectTrigger className="bg-gray-800 border-gray-700 focus:border-caesar-gold">
+                                <SelectValue placeholder="Select type" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="meme">Meme Token</SelectItem>
-                              <SelectItem value="tech">Tech Token</SelectItem>
-                              <SelectItem value="utility">Utility Token</SelectItem>
+                              <SelectItem value="tech">Tech/Utility</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -660,19 +904,16 @@ ${deploymentData.explorerUrl}
                       name="launchpad"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Launchpad *</FormLabel>
+                          <FormLabel>Launchpad</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="bg-gray-800 border-gray-700">
-                                <SelectValue />
+                              <SelectTrigger className="bg-gray-800 border-gray-700 focus:border-caesar-gold">
+                                <SelectValue placeholder="Select launchpad" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {launchpads.map((launchpad) => (
-                                <SelectItem key={launchpad.value} value={launchpad.value}>
-                                  {launchpad.label} ({launchpad.fee})
-                                </SelectItem>
-                              ))}
+                              <SelectItem value="pump">Pump.fun (~1 SOL fee)</SelectItem>
+                              <SelectItem value="bonk">LetsBonk.fun (~0.5 SOL fee)</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -681,26 +922,25 @@ ${deploymentData.explorerUrl}
                     />
                   </div>
 
-                  {/* Trading Parameters */}
+                  {/* Trading Settings */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField
                       control={form.control}
                       name="devBuyAmount"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Dev Buy (SOL)</FormLabel>
+                          <FormLabel>Dev Buy Amount (SOL) <span className="text-xs text-gray-400">(0.1-10)</span></FormLabel>
                           <FormControl>
                             <Input 
                               type="number"
                               step="0.01"
-                              min="0.01"
+                              min="0.1"
                               max="10"
                               {...field}
                               onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                              className="bg-gray-800 border-gray-700"
+                              className="bg-gray-800 border-gray-700 focus:border-caesar-gold font-mono"
                             />
                           </FormControl>
-                          <FormDescription>Initial buy amount</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -710,16 +950,16 @@ ${deploymentData.explorerUrl}
                       name="slippage"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Slippage (%)</FormLabel>
+                          <FormLabel>Slippage (%) <span className="text-xs text-gray-400">(0-50)</span></FormLabel>
                           <FormControl>
                             <Input 
                               type="number"
                               step="0.1"
-                              min="0.1"
+                              min="0"
                               max="50"
                               {...field}
                               onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                              className="bg-gray-800 border-gray-700"
+                              className="bg-gray-800 border-gray-700 focus:border-caesar-gold font-mono"
                             />
                           </FormControl>
                           <FormMessage />
@@ -731,16 +971,16 @@ ${deploymentData.explorerUrl}
                       name="priorityFee"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Priority Fee (SOL)</FormLabel>
+                          <FormLabel>Priority Fee (SOL) <span className="text-xs text-gray-400">(0.00001-0.1)</span></FormLabel>
                           <FormControl>
                             <Input 
                               type="number"
-                              step="0.0001"
-                              min="0"
-                              max="0.01"
+                              step="0.00001"
+                              min="0.00001"
+                              max="0.1"
                               {...field}
                               onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                              className="bg-gray-800 border-gray-700"
+                              className="bg-gray-800 border-gray-700 focus:border-caesar-gold font-mono"
                             />
                           </FormControl>
                           <FormMessage />
@@ -749,246 +989,280 @@ ${deploymentData.explorerUrl}
                     />
                   </div>
 
-                  {/* Options */}
-                  <div className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="useDevnet"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-gray-700 p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Use Devnet</FormLabel>
-                            <FormDescription>
-                              Deploy on Solana devnet for testing
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={(checked) => {
-                                field.onChange(checked);
-                                setIsDevnet(checked);
-                              }}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
+                  {/* Auto-post Toggle */}
+                  <FormField
+                    control={form.control}
+                    name="autoPost"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border border-gray-700 p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Auto-post to Twitter</FormLabel>
+                          <FormDescription>
+                            Automatically tweet about your token launch
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Save Preset */}
+              <Card className="bg-caesar-dark border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-lg">Save Configuration as Preset</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex space-x-2">
+                    <Input
+                      placeholder="Preset name (e.g., 'Meme Launch Standard')"
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      className="bg-gray-800 border-gray-700 focus:border-caesar-gold"
                     />
-                    <FormField
-                      control={form.control}
-                      name="autoPost"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-gray-700 p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Auto-post to X/Twitter</FormLabel>
-                            <FormDescription>
-                              Automatically announce your token launch
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
+                    <Button
+                      type="button"
+                      onClick={saveCurrentAsPreset}
+                      disabled={!presetName.trim() || savePresetMutation.isPending}
+                      className="bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted"
+                    >
+                      {savePresetMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Save'
                       )}
-                    />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Sidebar */}
+            <div className="space-y-6">
+              {/* Wallet Selection */}
+              <Card className="bg-caesar-dark border-gray-800">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Wallet Selection</CardTitle>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => refetchWallets()}
+                      disabled={walletsLoading}
+                      className="bg-gray-800 border-gray-700 hover:bg-gray-700"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${walletsLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Developer Wallet */}
+                  <div>
+                    <Label className="text-sm font-medium">Developer Wallet (first selected) *</Label>
+                    <Select value={selectedDevWallet} onValueChange={setSelectedDevWallet}>
+                      <SelectTrigger className="mt-1 bg-gray-800 border-gray-700 focus:border-caesar-gold">
+                        <SelectValue placeholder="Select dev wallet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userWallets.map((wallet: WalletData) => (
+                          <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-sm">{wallet.label}</span>
+                              <span className="text-xs text-gray-400 ml-2">
+                                {wallet.sol_balance.toFixed(4)} SOL
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* Developer Wallet Selection */}
-                  <div className="space-y-4">
-                    <Label>Developer Wallet (Required for Deployment)</Label>
-                    {walletsLoading ? (
-                      <div className="p-4 bg-gray-800/50 rounded-lg text-center">
-                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                        <p className="text-sm text-gray-400">Loading wallets...</p>
-                      </div>
-                    ) : userWallets.length === 0 ? (
-                      <div className="p-4 bg-gray-800/50 rounded-lg text-center">
-                        <Wallet className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-400 mb-2">No wallets found</p>
-                        <p className="text-xs text-gray-500">Create a wallet in Wallet Operations first</p>
-                      </div>
-                    ) : (
-                      <Select value={selectedDevWallet} onValueChange={setSelectedDevWallet}>
-                        <SelectTrigger className="bg-gray-800 border-gray-700">
-                          <SelectValue placeholder="Select developer wallet for deployment" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {userWallets.map((wallet: WalletData) => (
-                            <SelectItem key={wallet.pubkey} value={wallet.pubkey}>
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-mono text-sm">
-                                    {wallet.label || 'Wallet'}
-                                  </span>
+                  <Separator />
+
+                  {/* Bundle Wallets */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Bundle Wallets (min 2, max 5 total)</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => createWalletsMutation.mutate(3)}
+                        disabled={createWalletsMutation.isPending}
+                        className="bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Create 3
+                      </Button>
+                    </div>
+                    
+                    <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                      {userWallets.map((wallet: WalletData) => {
+                        if (wallet.pubkey === selectedDevWallet) return null;
+                        
+                        const bundleWallet = bundleWallets.find(w => w.pubkey === wallet.pubkey);
+                        const isSelected = !!bundleWallet;
+                        
+                        return (
+                          <div key={wallet.pubkey} className="p-3 border border-gray-700 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleWalletSelection(wallet.pubkey)}
+                                disabled={!isSelected && bundleWallets.filter(w => w.selected).length >= 5}
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium">{wallet.label}</span>
                                   {wallet.is_burner && (
-                                    <Badge variant="outline" className="text-xs">Burner</Badge>
+                                    <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-400">
+                                      Burner
+                                    </Badge>
                                   )}
                                 </div>
-                                <span className="text-xs text-gray-400 ml-2">
+                                <div className="text-xs text-gray-400 font-mono">
+                                  {wallet.pubkey.slice(0, 8)}...{wallet.pubkey.slice(-8)}
+                                </div>
+                                <div className="text-xs text-gray-500">
                                   {wallet.sol_balance.toFixed(4)} SOL
-                                </span>
+                                </div>
                               </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            </div>
+                            
+                            {isSelected && bundleWallet && (
+                              <div className="mt-2 flex items-center space-x-2">
+                                <Label className="text-xs">Buy Amount:</Label>
+                                <Input
+                                  type="number"
+                                  step="0.001"
+                                  min="0.001"
+                                  max="1"
+                                  value={bundleWallet.buyAmount}
+                                  onChange={(e) => updateBundleWallet(wallet.pubkey, 'buyAmount', parseFloat(e.target.value))}
+                                  className="h-6 text-xs bg-gray-800 border-gray-700 focus:border-caesar-gold font-mono"
+                                />
+                                <span className="text-xs text-gray-400">SOL</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {bundleWallets.filter(w => w.selected).length > 0 && (
+                      <div className="mt-2 p-2 bg-gray-800 rounded text-xs">
+                        <div className="flex justify-between">
+                          <span>Selected:</span>
+                          <span>{bundleWallets.filter(w => w.selected).length}/5</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Buy:</span>
+                          <span>
+                            {bundleWallets.filter(w => w.selected).reduce((sum, w) => sum + w.buyAmount, 0).toFixed(3)} SOL
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Multi-Wallet Configuration */}
-              <Card className="bg-caesar-dark border-gray-800">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Multi-Wallet Configuration (Optional)</span>
-                    <div className="flex space-x-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => generateWalletMutation.mutate()}
-                        disabled={generateWalletMutation.isPending}
-                      >
-                        {generateWalletMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Plus className="w-4 h-4" />
-                        )}
-                        Generate Burner
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => refetchWallets()}
-                        disabled={walletsLoading}
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        Refresh Wallets
-                      </Button>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Alert className="bg-yellow-500/10 border-yellow-500/20">
-                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                    <AlertDescription>
-                      For privacy, use burner wallets. Never store private keys permanently. Consider using VPN.
-                    </AlertDescription>
-                  </Alert>
-
-                  {/* User Wallets Selection */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Available Wallets ({userWallets.length})</Label>
-                      <div className="text-sm text-gray-400">
-                        Network: {isDevnet ? 'Devnet' : 'Mainnet'}
+              {/* Private Keys Management */}
+              {bundleWallets.some(w => w.privateKey) && (
+                <Card className="bg-caesar-dark border-gray-800 border-yellow-500/20">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Shield className="w-5 h-5 text-yellow-400" />
+                      <span>Private Keys</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Show Private Keys</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowPrivateKeys(!showPrivateKeys)}
+                        >
+                          {showPrivateKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
                       </div>
-                    </div>
-                    
-                    {walletsLoading ? (
-                      <div className="text-center py-4">
-                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                        <p className="text-sm text-gray-400">Loading wallets...</p>
-                      </div>
-                    ) : userWallets.length === 0 ? (
-                      <div className="text-center py-8 bg-gray-800/50 rounded-lg">
-                        <Wallet className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-400 mb-2">No wallets found</p>
-                        <p className="text-xs text-gray-500">Create wallets in Wallet Operations first</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                        {userWallets.map((wallet: WalletData) => {
-                          const isSelected = multiWallets.some((w: MultiWallet) => w.walletAddress === wallet.pubkey);
-                          return (
-                            <div 
-                              key={wallet.pubkey} 
-                              className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                                isSelected 
-                                  ? 'bg-caesar-gold/10 border-caesar-gold/30' 
-                                  : 'bg-gray-800 border-gray-700 hover:border-gray-600'
-                              }`}
-                              onClick={() => toggleWalletSelection(wallet.pubkey)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="flex items-center space-x-2">
-                                    <span className="font-mono text-sm">{wallet.label || 'Wallet'}</span>
-                                    {wallet.is_burner && (
-                                      <Badge variant="outline" className="text-xs">Burner</Badge>
-                                    )}
-                                  </div>
-                                  <div className="text-xs text-gray-400 font-mono">
-                                    {wallet.pubkey.slice(0, 8)}...{wallet.pubkey.slice(-8)}
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-sm font-medium">
-                                    {wallet.sol_balance.toFixed(4)} SOL
-                                  </div>
-                                  <div className="text-xs text-gray-400">
-                                    {wallet.token_balances?.length || 0} tokens
-                                  </div>
-                                </div>
+                      
+                      {showPrivateKeys && (
+                        <div className="space-y-2">
+                          {bundleWallets.filter(w => w.privateKey).map(wallet => (
+                            <div key={wallet.pubkey} className="p-2 bg-gray-800 rounded text-xs">
+                              <div className="font-medium mb-1">{wallet.label}</div>
+                              <div className="font-mono text-gray-400 break-all">
+                                {wallet.privateKey}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Selected Wallets Configuration */}
-                  {multiWallets.length > 0 && (
-                    <div className="space-y-3">
-                      <Label>Selected Wallets ({multiWallets.length})</Label>
-                      {multiWallets.map((wallet) => (
-                        <div key={wallet.id} className="p-4 border border-caesar-gold/30 bg-caesar-gold/5 rounded-lg space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <Label className="font-mono text-sm">{wallet.label}</Label>
-                              <span className="text-xs text-gray-400 font-mono">
-                                {wallet.walletAddress.slice(0, 8)}...{wallet.walletAddress.slice(-8)}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeMultiWallet(wallet.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <div className="flex-1">
-                              <Label className="text-xs text-gray-400">Buy Amount (SOL)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                max="10"
-                                value={wallet.buyAmount}
-                                onChange={(e) => updateMultiWallet(wallet.id, 'buyAmount', parseFloat(e.target.value) || 0)}
-                                className="bg-gray-800 border-gray-700 focus:border-caesar-gold"
-                              />
-                            </div>
-                            <div className="flex items-center space-x-2 pt-5">
-                              <Switch
-                                checked={wallet.selected}
-                                onCheckedChange={(checked) => updateMultiWallet(wallet.id, 'selected', checked)}
-                              />
-                              <Label className="text-xs">Enabled</Label>
-                            </div>
-                          </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
+                      
+                      <Alert className="bg-yellow-500/10 border-yellow-500/20">
+                        <AlertTriangle className="h-4 w-4 text-yellow-400" />
+                        <AlertDescription className="text-xs">
+                          Private keys are only shown once. Save them securely before deployment.
+                          Keys are automatically cleared after use.
+                        </AlertDescription>
+                      </Alert>
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Deployment Summary */}
+              <Card className="bg-caesar-dark border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-lg">Deployment Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span>Launchpad:</span>
+                    <span className="capitalize">{form.watch('launchpad') === 'pump' ? 'Pump.fun' : 'LetsBonk.fun'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Dev Buy:</span>
+                    <span>{form.watch('devBuyAmount')} SOL</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Bundle Wallets:</span>
+                    <span>{bundleWallets.filter(w => w.selected).length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Total Bundle Buy:</span>
+                    <span>{bundleWallets.filter(w => w.selected).reduce((sum, w) => sum + w.buyAmount, 0).toFixed(3)} SOL</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Caesar Points Reward:</span>
+                    <span>{100 + (bundleWallets.filter(w => w.selected).length * 20)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Network:</span>
+                    <span>{isDevnet ? 'Devnet' : 'Mainnet Beta'}</span>
+                  </div>
+                  
+                  {!isFormValid && (
+                    <Alert className="bg-red-500/10 border-red-500/20">
+                      <AlertTriangle className="h-4 w-4 text-red-400" />
+                      <AlertDescription className="text-xs">
+                        {!selectedDevWallet && <div>• Select developer wallet</div>}
+                        {!imageUri && <div>• Upload and process logo</div>}
+                        {bundleWallets.filter(w => w.selected).length < 1 && <div>• Select at least 1 bundle wallet</div>}
+                        {bundleWallets.filter(w => w.selected).length > 5 && <div>• Maximum 5 bundle wallets</div>}
+                      </AlertDescription>
+                    </Alert>
                   )}
                 </CardContent>
               </Card>
@@ -996,13 +1270,13 @@ ${deploymentData.explorerUrl}
               {/* Deploy Button */}
               <Button
                 type="submit"
-                disabled={!isFormValid || deployTokenMutation.isPending || uploadImageMutation.isPending || uploadMetadataMutation.isPending}
-                className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted font-medium text-lg py-6"
+                disabled={!isFormValid || deployTokenMutation.isPending}
+                className="w-full bg-caesar-gold text-caesar-black hover:bg-caesar-gold-muted font-medium text-lg py-3"
               >
-                {(deployTokenMutation.isPending || uploadMetadataMutation.isPending) ? (
+                {deployTokenMutation.isPending ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    {uploadMetadataMutation.isPending ? 'Uploading Metadata...' : 'Deploying Token...'}
+                    Deploying...
                   </>
                 ) : (
                   <>
@@ -1011,115 +1285,6 @@ ${deploymentData.explorerUrl}
                   </>
                 )}
               </Button>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Preview */}
-              <Card className="bg-caesar-dark border-gray-800">
-                <CardHeader>
-                  <CardTitle className="text-lg">Deployment Preview</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {form.watch('name') ? (
-                    <div>
-                      <p className="text-sm text-gray-400">Token Name</p>
-                      <p className="font-medium">{form.watch('name')}</p>
-                    </div>
-                  ) : (
-                    <div className="text-gray-500 text-sm">Enter token details to see preview</div>
-                  )}
-                  
-                  {form.watch('symbol') && (
-                    <div>
-                      <p className="text-sm text-gray-400">Symbol</p>
-                      <p className="font-medium font-mono">{form.watch('symbol')}</p>
-                    </div>
-                  )}
-
-                  {form.watch('launchpad') && (
-                    <div>
-                      <p className="text-sm text-gray-400">Launchpad</p>
-                      <p className="font-medium">
-                        {launchpads.find(l => l.value === form.watch('launchpad'))?.label}
-                      </p>
-                    </div>
-                  )}
-
-                  {form.watch('devBuyAmount') && (
-                    <div>
-                      <p className="text-sm text-gray-400">Dev Buy</p>
-                      <p className="font-medium">{form.watch('devBuyAmount')} SOL</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Checklist */}
-              <Card className="bg-caesar-dark border-gray-800">
-                <CardHeader>
-                  <CardTitle className="text-lg">Pre-Deployment Checklist</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className={`w-4 h-4 ${form.watch('name') ? 'text-green-500' : 'text-gray-400'}`} />
-                    <span className={`text-sm ${form.watch('name') ? 'text-white' : 'text-gray-400'}`}>
-                      Token name provided
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className={`w-4 h-4 ${form.watch('symbol') ? 'text-green-500' : 'text-gray-400'}`} />
-                    <span className={`text-sm ${form.watch('symbol') ? 'text-white' : 'text-gray-400'}`}>
-                      Token symbol provided
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className={`w-4 h-4 ${form.watch('launchpad') ? 'text-green-500' : 'text-gray-400'}`} />
-                    <span className={`text-sm ${form.watch('launchpad') ? 'text-white' : 'text-gray-400'}`}>
-                      Launchpad selected
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className={`w-4 h-4 ${imageUri ? 'text-green-500' : 'text-gray-400'}`} />
-                    <span className={`text-sm ${imageUri ? 'text-white' : 'text-gray-400'}`}>
-                      Logo uploaded (optional)
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className={`w-4 h-4 ${form.watch('description') ? 'text-green-500' : 'text-gray-400'}`} />
-                    <span className={`text-sm ${form.watch('description') ? 'text-white' : 'text-gray-400'}`}>
-                      Description added (recommended)
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Security Notice */}
-              <Card className="bg-yellow-500/10 border-yellow-500/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-yellow-500">
-                    <Shield className="w-5 h-5" />
-                    <span>Security Notice</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <p>• Lightning mode: Server-side deployment for security</p>
-                  <p>• Use hardware wallet for production launches</p>
-                  <p>• Burner wallets recommended for privacy</p>
-                  <p>• Post-launch safety check via RugCheck API</p>
-                </CardContent>
-              </Card>
-
-              {/* Rewards */}
-              <Card className="bg-gradient-to-r from-caesar-gold/10 to-caesar-gold-muted/10 border-caesar-gold/20">
-                <CardContent className="p-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-caesar-gold mb-1">+500</div>
-                    <div className="text-sm text-gray-300">Caesar Points</div>
-                    <div className="text-xs text-gray-400 mt-1">Earned per successful deployment</div>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </form>

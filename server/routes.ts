@@ -28,6 +28,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Real API endpoints
   
+  // Deploy Console Enhanced Endpoints
+  
+  // Save deployment presets to Supabase
+  app.post("/api/deploy/save-preset", async (req, res) => {
+    try {
+      const { userWallet, name, launchpad, config } = req.body;
+      
+      if (!userWallet || !name || !config) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      // In production: Save to Supabase presets table
+      // INSERT INTO presets (user_wallet, name, launchpad, config) VALUES (...)
+      
+      res.json({
+        success: true,
+        message: 'Preset saved successfully'
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Load deployment presets from Supabase
+  app.post("/api/deploy/presets", async (req, res) => {
+    try {
+      const { userWallet } = req.body;
+      
+      if (!userWallet) {
+        return res.status(400).json({ error: 'User wallet required' });
+      }
+      
+      // In production: Fetch from Supabase presets table
+      // SELECT * FROM presets WHERE user_wallet = $1
+      
+      res.json({
+        success: true,
+        presets: [] // Mock empty for now
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Execute bundle trades via Jito
+  app.post("/api/deploy/execute-bundle", async (req, res) => {
+    try {
+      const { tokenMint, wallets, slippage, priorityFee, pool, network } = req.body;
+      
+      // In production: Create bundle transactions and submit to Jito
+      // 1. Generate buy transactions for each wallet
+      // 2. Bundle them atomically
+      // 3. Submit to Jito bundling service
+      
+      const bundleResults = wallets.map((wallet: any) => ({
+        wallet: wallet.pubkey,
+        signature: 'mock_sig_' + Math.random().toString(36).substr(2, 44),
+        success: true
+      }));
+      
+      res.json({
+        success: true,
+        results: bundleResults,
+        bundleId: 'bundle_' + Math.random().toString(36).substr(2, 20)
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Check wallet balance via Helius
+  app.post("/api/wallets/check-balance", async (req, res) => {
+    try {
+      const { walletAddress, network = 'devnet' } = req.body;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ error: 'Wallet address required' });
+      }
+      
+      // In production: Use Helius API to get live balance
+      const balanceResult = await heliusAPI.getNativeBalance(walletAddress);
+      
+      res.json({
+        success: true,
+        balance: balanceResult.data || 0,
+        network
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        balance: 0 
+      });
+    }
+  });
+  
+  // Auto-fund devnet wallets
+  app.post("/api/wallets/fund-devnet", async (req, res) => {
+    try {
+      const { walletAddress, amount } = req.body;
+      
+      if (!walletAddress || !amount) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      // In production: Use Solana connection to request airdrop
+      // const connection = new Connection(clusterApiUrl('devnet'));
+      // await connection.requestAirdrop(new PublicKey(walletAddress), amount * LAMPORTS_PER_SOL);
+      
+      res.json({
+        success: true,
+        signature: 'airdrop_' + Math.random().toString(36).substr(2, 44),
+        amount
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Award Caesar Points
+  app.post("/api/users/award-points", async (req, res) => {
+    try {
+      const { userWallet, points, activity } = req.body;
+      
+      if (!userWallet || !points) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      // In production: Update Supabase users table
+      // UPDATE users SET points = points + $1 WHERE wallet = $2
+      
+      res.json({
+        success: true,
+        pointsAwarded: points,
+        activity,
+        newTotal: 1000 + points // Mock total
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
   // Live Wallet Operations Endpoints
   
   // Fetch all wallets for user with live balance updates
@@ -491,19 +633,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/deploy/upload-metadata", async (req, res) => {
     try {
-      const { name, symbol, description, imageUri, twitter, telegram, website } = req.body;
+      const { name, symbol, description, image, external_url, twitter, telegram } = req.body;
       
       const metadata = {
         name,
         symbol, 
         description,
-        image: imageUri,
-        external_url: website,
+        image,
+        external_url,
         twitter,
         telegram
       };
       
-      // Mock metadata upload - in production, integrate with PumpPortal /upload/meta
+      // In production: Upload to IPFS via PumpPortal /upload/meta endpoint
+      // const formData = new FormData();
+      // formData.append('metadata', JSON.stringify(metadata));
+      // const response = await fetch(`${PUMPPORTAL_BASE_URL}/upload/meta`, {
+      //   method: 'POST',
+      //   headers: { 'Authorization': `Bearer ${PUMPPORTAL_API_KEY}` },
+      //   body: formData
+      // });
+      
       const mockHash = 'Qm' + Math.random().toString(36).substr(2, 44);
       const metadataUri = `https://ipfs.io/ipfs/${mockHash}`;
       
@@ -593,16 +743,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { message, tokenMint } = req.body;
       
-      // Mock Twitter post
+      if (!message) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      
+      // In production: Use twitter-api-v2 for live posting
+      // const { TwitterApi } = require('twitter-api-v2');
+      // const client = new TwitterApi({
+      //   appKey: process.env.TWITTER_APP_KEY,
+      //   appSecret: process.env.TWITTER_APP_SECRET,
+      //   accessToken: process.env.TWITTER_ACCESS_TOKEN,
+      //   accessSecret: process.env.TWITTER_ACCESS_SECRET,
+      // });
+      // 
+      // const tweet = await client.v2.tweet({
+      //   text: message
+      // });
+      
+      // Mock Twitter post for development
       const mockTweetId = Math.random().toString(36).substr(2, 19);
       
       res.json({
         success: true,
         tweetId: mockTweetId,
-        url: `https://twitter.com/user/status/${mockTweetId}`
+        url: `https://twitter.com/caesarbot_sol/status/${mockTweetId}`,
+        message: message.slice(0, 100) + '...'
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error('Twitter post error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message || 'Failed to post tweet'
+      });
     }
   });
 

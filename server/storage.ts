@@ -225,7 +225,7 @@ export class MemStorage implements IStorage {
   }
 
   async deleteWallet(address: string): Promise<boolean> {
-    for (const wallet of this.wallets.values()) {
+    for (const wallet of Array.from(this.wallets.values())) {
       if (wallet.pubkey === address) {
         this.wallets.delete(wallet.id);
         return true;
@@ -235,7 +235,7 @@ export class MemStorage implements IStorage {
   }
 
   async updateWalletBalance(address: string, balance: number): Promise<boolean> {
-    for (const wallet of this.wallets.values()) {
+    for (const wallet of Array.from(this.wallets.values())) {
       if (wallet.pubkey === address) {
         wallet.balance = balance.toString();
         return true;
