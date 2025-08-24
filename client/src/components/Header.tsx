@@ -62,12 +62,6 @@ export function Header() {
 
         {/* Header Actions */}
         <div className="flex items-center space-x-2 lg:space-x-4">
-          {/* Network Toggle */}
-          <div className="flex items-center">
-            <div className="text-xs px-2 py-1 rounded-md bg-gray-800 border border-gray-700">
-              <span className="text-yellow-400">●</span> Devnet
-            </div>
-          </div>
 
           {/* Wallet Connection */}
           <WalletConnectButton />
