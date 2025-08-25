@@ -69,6 +69,27 @@ class PumpFunAPI {
     }
   }
 
+  async getLatestTokens(): Promise<any[]> {
+    try {
+      const response = await this.getRecentTokens(10);
+      if (response.success && response.data) {
+        return response.data.map(token => ({
+          address: token.mint,
+          symbol: token.symbol,
+          name: token.name,
+          marketCap: `$${(token.market_cap / 1000000).toFixed(2)}M`,
+          change: '+0.00%', // Mock data
+          launchTime: new Date(token.createdTimestamp).toLocaleDateString(),
+          liquidity: `$${(token.virtualSolReserves / 1000).toFixed(1)}K`,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get latest tokens:', error);
+      return [];
+    }
+  }
+
   async getTokenData(mintAddress: string): Promise<APIResponse<PumpFunToken | null>> {
     try {
       const response = await this.client.get(`/tokens/${mintAddress}`);

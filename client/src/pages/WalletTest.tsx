@@ -1,12 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useWallet } from "@/providers/WalletProvider";
-import { useWalletAuth } from "@/hooks/useWalletAuth";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useAppStore } from "@/store/useAppStore";
 
 export function WalletTest() {
   const { connected, publicKey, connect, disconnect } = useWallet();
-  const { isAuthenticated, isAuthenticating } = useWalletAuth();
   const { user, isWalletConnected } = useAppStore();
 
   return (
@@ -50,20 +48,17 @@ export function WalletTest() {
           </CardContent>
         </Card>
 
-        {/* Authentication Status */}
+        {/* Wallet Status */}
         <Card>
           <CardHeader>
-            <CardTitle>Authentication Status</CardTitle>
+            <CardTitle>Wallet Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <strong>Authenticated:</strong> {isAuthenticated ? "✅ Yes" : "❌ No"}
-            </div>
-            <div>
-              <strong>Authenticating:</strong> {isAuthenticating ? "🔄 Yes" : "❌ No"}
-            </div>
-            <div>
               <strong>Store Connected:</strong> {isWalletConnected ? "✅ Yes" : "❌ No"}
+            </div>
+            <div>
+              <strong>Network:</strong> Mainnet
             </div>
           </CardContent>
         </Card>

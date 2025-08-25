@@ -80,6 +80,35 @@ class HeliusAPI {
     }
   }
 
+  async getSolBalance(walletAddress: string): Promise<number> {
+    try {
+      const response = await this.getNativeBalance(walletAddress);
+      return response.success && response.data ? response.data : 0;
+    } catch (error) {
+      console.error('Failed to get SOL balance:', error);
+      return 0;
+    }
+  }
+
+  async getTokenBalances(walletAddress: string): Promise<any[]> {
+    try {
+      const response = await this.getTokenAccounts(walletAddress);
+      if (response.success && response.data) {
+        return response.data.map(token => ({
+          mint: token.mint,
+          symbol: token.tokenSymbol || 'Unknown',
+          name: token.tokenName || 'Unknown Token',
+          balance: parseFloat(token.amount),
+          decimals: token.decimals,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get token balances:', error);
+      return [];
+    }
+  }
+
   async getTokenMetadata(mintAddress: string): Promise<APIResponse<any>> {
     try {
       const response = await this.rpcClient.post('', {

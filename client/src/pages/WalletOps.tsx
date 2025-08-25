@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
-import { useWallet } from '@/providers/WalletProvider';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { useAppStore } from '@/store/useAppStore';
 import CryptoJS from 'crypto-js';
 
@@ -72,7 +72,7 @@ export function WalletOps() {
   const [balanceUpdates, setBalanceUpdates] = useState<Map<string, number>>(new Map());
   
   const queryClient = useQueryClient();
-  const { connection } = useWallet();
+  const { publicKey } = useWallet();
   const { user } = useAppStore();
 
   // Get network-specific connection

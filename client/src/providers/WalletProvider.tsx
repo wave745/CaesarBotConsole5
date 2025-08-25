@@ -1,107 +1,48 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js';
-import { toast } from 'react-hot-toast';
+import { FC, ReactNode, useMemo } from 'react';
+import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
+import {
+  PhantomWalletAdapter,
+  SolflareWalletAdapter,
+  TrustWalletAdapter,
+} from '@solana/wallet-adapter-wallets';
+import { clusterApiUrl } from '@solana/web3.js';
 
-interface WalletContextType {
-  connected: boolean;
-  publicKey: PublicKey | null;
-  signMessage: ((message: Uint8Array) => Promise<Uint8Array>) | null;
-  connect: () => Promise<void>;
-  disconnect: () => Promise<void>;
-  connection: Connection;
-}
-
-const WalletContext = createContext<WalletContextType | null>(null);
+// Import wallet adapter CSS
+require('@solana/wallet-adapter-react-ui/styles.css');
 
 interface WalletProviderProps {
-  children: React.ReactNode;
-  network?: 'mainnet-beta' | 'devnet' | 'testnet';
+  children: ReactNode;
+  network?: WalletAdapterNetwork;
 }
 
-export function WalletProvider({ children, network = 'devnet' }: WalletProviderProps) {
-  const [connected, setConnected] = useState(false);
-  const [publicKey, setPublicKey] = useState<PublicKey | null>(null);
-  const [signMessage, setSignMessage] = useState<((message: Uint8Array) => Promise<Uint8Array>) | null>(null);
+export const WalletProvider: FC<WalletProviderProps> = ({ 
+  children, 
+  network = WalletAdapterNetwork.Devnet 
+}) => {
+  // You can also provide a custom RPC endpoint
+  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
 
-  // Create connection
-  const connection = new Connection(
-    import.meta.env.VITE_RPC_ENDPOINT || clusterApiUrl(network),
-    'confirmed'
+  // @solana/wallet-adapter-wallets includes all the adapters but supports tree shaking and lazy loading
+  // Only the wallets you configure here will be compiled into your application, and only the dependencies
+  // of wallets that your users connect to will be loaded
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter(),
+      new TrustWalletAdapter(),
+    ],
+    []
   );
-
-  const connect = async () => {
-    try {
-      // Check if wallet is available (Phantom, Solflare, etc.)
-      const { solana } = window as any;
-      
-      if (!solana) {
-        toast.error('Please install a Solana wallet (Phantom, Solflare, etc.)');
-        return;
-      }
-
-      const response = await solana.connect({ onlyIfTrusted: false });
-      const pubKey = new PublicKey(response.publicKey.toString());
-      
-      setPublicKey(pubKey);
-      setConnected(true);
-      
-      // Set up sign message function
-      setSignMessage(() => async (message: Uint8Array) => {
-        const { signature } = await solana.signMessage(message);
-        return signature;
-      });
-      
-      toast.success('Wallet connected!');
-    } catch (error: any) {
-      console.error('Wallet connection failed:', error);
-      toast.error('Failed to connect wallet');
-    }
-  };
-
-  const disconnect = async () => {
-    try {
-      const { solana } = window as any;
-      if (solana) {
-        await solana.disconnect();
-      }
-      
-      setConnected(false);
-      setPublicKey(null);
-      setSignMessage(null);
-      toast.success('Wallet disconnected');
-    } catch (error) {
-      console.error('Disconnect failed:', error);
-    }
-  };
-
-  // Auto-connect on page load if previously connected
-  useEffect(() => {
-    const { solana } = window as any;
-    if (solana?.isPhantom && solana.isConnected) {
-      connect();
-    }
-  }, []);
-
-  const value: WalletContextType = {
-    connected,
-    publicKey,
-    signMessage,
-    connect,
-    disconnect,
-    connection,
-  };
 
   return (
-    <WalletContext.Provider value={value}>
-      {children}
-    </WalletContext.Provider>
+    <ConnectionProvider endpoint={endpoint}>
+      <SolanaWalletProvider wallets={wallets} autoConnect>
+        <WalletModalProvider>
+          {children}
+        </WalletModalProvider>
+      </SolanaWalletProvider>
+    </ConnectionProvider>
   );
-}
-
-export function useWallet() {
-  const context = useContext(WalletContext);
-  if (!context) {
-    throw new Error('useWallet must be used within a WalletProvider');
-  }
-  return context;
-}
+};

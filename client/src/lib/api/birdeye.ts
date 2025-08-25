@@ -33,6 +33,23 @@ class BirdeyeAPI {
     }
   }
 
+  async getTokenChart(tokenAddress: string, timeframe: string = '1D'): Promise<{ labels: string[]; prices: number[] }> {
+    try {
+      const response = await this.getTokenOHLCV(tokenAddress, '1H');
+      if (response.success && response.data?.items) {
+        const items = response.data.items;
+        const labels = items.map(item => new Date(item.unixTime * 1000).toLocaleTimeString());
+        const prices = items.map(item => item.c); // Close price
+        
+        return { labels, prices };
+      }
+      return { labels: [], prices: [] };
+    } catch (error) {
+      console.error('Failed to get token chart:', error);
+      return { labels: [], prices: [] };
+    }
+  }
+
   async getMultipleTokenPrices(tokenAddresses: string[]): Promise<APIResponse<Record<string, BirdeyePrice>>> {
     try {
       const response = await this.client.get(`/defi/multi_price`, {

@@ -18,9 +18,9 @@ import { Rocket, Upload, Twitter, Globe, CheckCircle, Plus, Trash2, Loader2, Ale
 import { toast } from "react-hot-toast";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
-import { useWallet } from "@/providers/WalletProvider";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useAppStore } from "@/store/useAppStore";
-import { Keypair } from "@solana/web3.js";
+import { Keypair, Connection } from "@solana/web3.js";
 
 // Enhanced form schema based on specifications
 const deployFormSchema = z.object({
@@ -88,7 +88,8 @@ export function Deploy() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { user } = useAppStore();
-  const { connection } = useWallet();
+  const { publicKey } = useWallet();
+  const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
 
   const form = useForm<DeployFormData>({
     resolver: zodResolver(deployFormSchema),

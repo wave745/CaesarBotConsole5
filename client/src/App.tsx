@@ -17,6 +17,7 @@ import { WalletTest } from "@/pages/WalletTest";
 import { Toaster as HotToaster } from "react-hot-toast";
 import { WalletProvider } from "@/providers/WalletProvider";
 import { useAppStore } from "@/store/useAppStore";
+import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 
 function Router() {
   return (
@@ -43,7 +44,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <WalletProvider network="devnet">
+      <WalletProvider network={WalletAdapterNetwork.Mainnet}>
         <TooltipProvider>
           <Toaster />
           <HotToaster 
