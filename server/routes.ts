@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertTokenSchema, insertSnipeSchema, insertDeploymentSchema, insertWalletSchema } from "@shared/schema";
 import { z } from "zod";
-import { heliusAPI, birdeyeAPI, jupiterAPI, openaiService, supabaseService } from './services/api';
+import { heliusAPI, birdeyeAPI, jupiterAPI, openaiService } from './services/api';
 import { authRoutes } from "./routes/auth.js";
 import multer from 'multer';
 
@@ -530,26 +530,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User stats endpoints
-  app.get("/api/user/:address/stats", async (req, res) => {
-    try {
-      const { address } = req.params;
-      const result = await supabaseService.instance.getUserStats(address);
-      res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
+  // User stats endpoints - Temporarily disabled due to missing Supabase configuration
+  // app.get("/api/user/:address/stats", async (req, res) => {
+  //   try {
+  //     const { address } = req.params;
+  //     const result = await supabaseService.instance.getUserStats(address);
+  //     res.json(result);
+  //   } catch (error: any) {
+  //     res.status(500).json({ success: false, error: error.message });
+  //   }
+  // });
 
-  app.get("/api/leaderboard", async (req, res) => {
-    try {
-      const limit = parseInt(req.query.limit as string) || 100;
-      const result = await supabaseService.instance.getLeaderboard(limit);
-      res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
+  // app.get("/api/leaderboard", async (req, res) => {
+  //   try {
+  //     const limit = parseInt(req.query.limit as string) || 100;
+  //     const result = await supabaseService.instance.getLeaderboard(limit);
+  //     res.json(result);
+  //   } catch (error: any) {
+  //     res.status(500).json({ success: false, error: error.message });
+  //   }
+  // };
 
   // Scanner endpoints
   app.get("/api/scanner/tokens", async (req, res) => {

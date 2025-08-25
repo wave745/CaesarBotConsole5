@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Connection, clusterApiUrl, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { createHash } from 'crypto';
-import { supabaseService } from '../services/api.js';
+// import { supabaseService } from '../services/api.js';
 
 const router = Router();
 

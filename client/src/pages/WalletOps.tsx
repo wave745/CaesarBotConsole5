@@ -713,6 +713,7 @@ export function WalletOps() {
                 {/* Virtualized List with Live Updates */}
                 <List
                   height={500}
+                  width={800}
                   itemCount={filteredWallets.length}
                   itemSize={60}
                   data-testid="live-wallet-list"

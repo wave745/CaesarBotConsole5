@@ -134,47 +134,39 @@ class OpenAIServiceServer {
   }
 }
 
-// Supabase Service
-class SupabaseServiceServer {
-  private client;
+// Supabase Service - Commented out due to missing environment variables
+// class SupabaseServiceServer {
+//   private client;
 
-  constructor() {
-    this.client = createClient(SERVER_ENV.SUPABASE_URL, SERVER_ENV.SUPABASE_ANON_KEY);
-  }
+//   constructor() {
+//     this.client = createClient(SERVER_ENV.SUPABASE_URL, SERVER_ENV.SUPABASE_ANON_KEY);
+//   }
 
-  async getUserStats(walletAddress: string) {
-    const { data, error } = await this.client
-      .from('user_stats')
-      .select('*')
-      .eq('wallet_address', walletAddress)
-      .single();
+//   async getUserStats(walletAddress: string) {
+//     const { data, error } = await this.client
+//       .from('user_stats')
+//       .select('*')
+//       .eq('wallet_address', walletAddress)
+//       .single();
 
-    return { success: !error, data: data || null };
-  }
+//     return { success: !error, data: data || null };
+//   }
 
-  async getLeaderboard(limit = 100) {
-    const { data, error } = await this.client
-      .from('user_stats')
-      .select('*')
-      .order('caesar_points', { ascending: false })
-      .limit(limit);
+//   async getLeaderboard(limit = 100) {
+//     const { data, error } = await this.client
+//       .from('user_stats')
+//       .select('*')
+//       .order('caesar_points', { ascending: false })
+//       .limit(limit);
 
-    return { success: !error, data: data || [] };
-  }
-}
+//     return { success: !error, data: data || [] };
+//   }
+// }
 
 export const heliusAPI = new HeliusAPIServer();
 export const birdeyeAPI = new BirdeyeAPIServer();
 export const jupiterAPI = new JupiterAPIServer();
 export const openaiService = new OpenAIServiceServer();
 
-// Lazy initialization of Supabase service to ensure environment variables are loaded
-let _supabaseService: SupabaseServiceServer | null = null;
-export const supabaseService = {
-  get instance() {
-    if (!_supabaseService) {
-      _supabaseService = new SupabaseServiceServer();
-    }
-    return _supabaseService;
-  }
-};
+// Supabase service temporarily disabled due to missing environment variables
+// export const supabaseService = null;
