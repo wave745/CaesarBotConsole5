@@ -62,7 +62,7 @@ export const PriceChart: FC<PriceChartProps> = ({ data, title, height = 300 }) =
         borderColor: '#374151',
         borderWidth: 1,
         callbacks: {
-          label: function(context) {
+          label: function(context: any) {
             return `${context.dataset.label}: $${context.parsed.y.toFixed(6)}`;
           },
         },
@@ -91,7 +91,7 @@ export const PriceChart: FC<PriceChartProps> = ({ data, title, height = 300 }) =
         },
         ticks: {
           color: '#9ca3af',
-          callback: function(value) {
+          callback: function(value: any) {
             return '$' + Number(value).toFixed(6);
           },
         },
