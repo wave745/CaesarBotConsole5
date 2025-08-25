@@ -10,7 +10,7 @@ import {
 import { clusterApiUrl } from '@solana/web3.js';
 
 // Import wallet adapter CSS
-require('@solana/wallet-adapter-react-ui/styles.css');
+import '@solana/wallet-adapter-react-ui/styles.css';
 
 interface WalletProviderProps {
   children: ReactNode;

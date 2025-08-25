@@ -11,3 +11,8 @@ import process from 'process';
 if (typeof global === 'undefined') {
   (window as any).global = window;
 }
+
+// Ensure crypto is available for Solana packages
+if (typeof crypto === 'undefined') {
+  (window as any).crypto = window.crypto || (window as any).msCrypto;
+}
