@@ -35,7 +35,7 @@ export class PumpPortalAPI {
   async uploadImage(imageFile: Buffer, filename: string): Promise<PumpPortalUploadResponse> {
     try {
       const formData = new FormData();
-      const blob = new Blob([imageFile], { type: 'image/png' });
+      const blob = new Blob([new Uint8Array(imageFile)], { type: 'image/png' });
       formData.append('file', blob, filename);
 
       const response = await fetch(`${PUMPPORTAL_API_BASE}/upload/img`, {
