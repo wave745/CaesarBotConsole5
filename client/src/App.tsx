@@ -12,7 +12,6 @@ import { Scanner } from "@/pages/Scanner";
 import { Rewards } from "@/pages/Rewards";
 import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
-import { WalletTest } from "@/pages/WalletTest";
 
 import { Toaster as HotToaster } from "react-hot-toast";
 import { WalletProvider } from "@/providers/WalletProvider";
@@ -32,7 +31,6 @@ function Router() {
         <Route path="/rewards" component={Rewards} />
         <Route path="/tools" component={Dashboard} />
         <Route path="/settings" component={Settings} />
-        <Route path="/wallet-test" component={WalletTest} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
